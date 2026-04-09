@@ -85,25 +85,42 @@ if df is not None:
             else:
                 st.warning("🔎 لا توجد نتائج مطابقة.")
 
-    elif menu == "📊 الإحصائيات":
-        st.header("📊 تحليل القوى العاملة")
-        # فلاتر لضمان عمل الرسوم البيانية
-        stat_df = df.copy()
-        
-        if not stat_df.empty:
+         # تطبيق الفلترة التراكمية
+        f_df = df[(df['EmpGender'].isin(sel_gen)) & (df['Skill Level'].isin(sel_skill)) & (df['Main Position'].isin(sel_pos))]
+
+        if menu == "📈 لوحة الإحصائيات":
+            st.header("📈 تحليل القوى العاملة (الأرقام الحالية)")
+            
+            # عرض البطاقات بنمط التباين العالي الجديد
+            c1, c2, c3, c4 = st.columns(4)
+            total = len(f_df)
+            males = len(f_df[f_df['EmpGender'] == 'Male'])
+            females = len(f_df[f_df['EmpGender'] == 'Female'])
+            
+            c1.metric("إجمالي المختارين", total)
+            c2.metric("عدد الذكور 👨", males)
+            c3.metric("عدد الإناث 👩", females)
+            c4.metric("نسبة التوطين", f"{(females/total*100 if total>0 else 0):.1f}% إناث")
+
+            st.divider()
+
+            # الرسوم البيانية مع إصلاح خطأ التسمية
             col1, col2 = st.columns(2)
             with col1:
-                fig_pie = px.pie(stat_df, names='EmpGender', title="توزيع الجنس", hole=0.4)
-                st.plotly_chart(fig_pie, use_container_width=True)
-            with col2:
-                # تجميع المسميات الوظيفية
-                pos_counts = stat_df['Main Position'].value_counts().reset_index()
-                pos_counts.columns = ['المسمى', 'العدد']
-                fig_bar = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', title="أعلى 10 وظائف")
-                st.plotly_chart(fig_bar, use_container_width=True)
-        else:
-            st.info("لا توجد بيانات كافية لعرض الإحصائيات.")
+                st.subheader("📍 التوزيع حسب المسمى")
+                if not f_df.empty:
+                    pos_data = f_df['Main Position'].value_counts().reset_index()
+                    pos_data.columns = ['المسمى', 'العدد']
+                    fig = px.bar(pos_data, x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='GnBu')
+                    st.plotly_chart(fig, use_container_width=True)
 
+            with col2:
+                st.subheader("📊 مستويات المهارة")
+                if not f_df.empty:
+                    skill_data = f_df['Skill Level'].value_counts().reset_index()
+                    skill_data.columns = ['المهارة', 'العدد']
+                    fig2 = px.pie(skill_data, names='المهارة', values='العدد', hole=0.5)
+                    st.plotly_chart(fig2, use_container_width=True)
     elif menu == "🚫 القائمة السوداء":
         st.header("🚫 قائمة المحظورين (Blacklist)")
         # فلترة دقيقة للقائمة السوداء

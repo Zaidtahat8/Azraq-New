@@ -4,52 +4,48 @@ import requests
 from io import BytesIO
 import plotly.express as px
 
-# --- 1. إعدادات الصفحة والتصميم العالي التباين ---
+# --- 1. إعدادات الصفحة والتصميم الاحترافي (تباين عالي) ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
 st.markdown("""
     <style>
     [data-testid="stElementToolbar"] { display: none; }
     
-    /* تحسين البطاقات لتكون داكنة والنص فاتح جداً للوضوح */
+    /* حل مشكلة البطاقات البيضاء: خلفية داكنة ونصوص ساطعة */
     div[data-testid="stMetric"] {
-        background-color: #1e293b !important; /* لون كحلي داكن */
-        border: 1px solid #334155 !important;
+        background-color: #0f172a !important; /* كحلي غامق جداً */
+        border: 2px solid #1e293b !important;
         padding: 20px !important;
         border-radius: 15px !important;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
     }
-    /* الأرقام باللون السماوي لتبدو بارزة */
     div[data-testid="stMetricValue"] {
-        color: #38bdf8 !important; 
+        color: #00f2ff !important; /* لون فسفوري بارز للأرقام */
         font-weight: 800 !important;
         font-size: 2.5rem !important;
     }
-    /* العناوين باللون الأبيض الصافي */
     div[data-testid="stMetricLabel"] {
-        color: #f1f5f9 !important;
+        color: #cbd5e1 !important; /* رمادي فاتح للعناوين */
         font-weight: 600 !important;
-        font-size: 1.1rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. نظام تسجيل الدخول ---
+# --- 2. نظام الدخول الآمن ---
 def check_password():
     if "password_correct" not in st.session_state:
-        st.title("🔐 دخول النظام الآمن")
-        u = st.text_input("اسم المستخدم", key="u_login")
-        p = st.text_input("كلمة المرور", type="password", key="p_login")
-        if st.button("تسجيل الدخول", key="b_login"):
+        st.title("🔐 بوابة الدخول - نظام HR الأزرق")
+        u = st.text_input("اسم المستخدم", key="hr_user")
+        p = st.text_input("كلمة المرور", type="password", key="hr_pass")
+        if st.button("دخول", key="hr_submit"):
             if u == "zaid" and p == "1111":
                 st.session_state["password_correct"] = True
                 st.rerun()
-            else: st.error("❌ البيانات غير صحيحة")
+            else: st.error("❌ البيانات المدخلة غير صحيحة")
         return False
     return True
 
 if check_password():
-    # --- 3. جلب البيانات من SharePoint ---
+    # --- 3. تحميل البيانات ---
     @st.cache_data(ttl=600)
     def load_data():
         URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
@@ -64,77 +60,83 @@ if check_password():
     df = load_data()
 
     if df is not None:
-        # --- 4. شريط التحكم الجانبي ---
-        # استخدام أسماء الملفات كما تظهر في مستودعك
-        st.sidebar.image("bdc_logo.png", width=160)
-        st.sidebar.title("📊 لوحة التحكم")
+        # --- 4. شريط الفلترة الجانبي ---
+        st.sidebar.image("bdc_logo.png", width=150)
+        st.sidebar.title("إدارة العمليات")
         
-        menu = st.sidebar.radio("القسم الحالي:", ["📈 لوحة الإحصائيات", "🔍 البحث المتقدم", "🚫 القائمة السوداء"])
+        menu = st.sidebar.radio("انتقل إلى:", ["📈 لوحة الإحصائيات", "🔍 البحث والمتابعة", "🚫 قائمة Blacklist"])
         
         st.sidebar.divider()
-        st.sidebar.subheader("🎯 فلترة دقيقة")
-        sel_gen = st.sidebar.multiselect("الجنس:", df['EmpGender'].unique(), default=df['EmpGender'].unique(), key="g_sel")
-        sel_skill = st.sidebar.multiselect("المهارة:", df['Skill Level'].unique(), default=df['Skill Level'].unique(), key="s_sel")
-        sel_pos = st.sidebar.multiselect("الوظيفة:", df['Main Position'].unique(), default=df['Main Position'].unique(), key="p_sel")
+        st.sidebar.subheader("🎯 فلاتر العرض")
+        sel_gen = st.sidebar.multiselect("النوع الاجتماعي:", df['EmpGender'].unique(), default=df['EmpGender'].unique(), key="g1")
+        sel_skill = st.sidebar.multiselect("مستوى المهارة:", df['Skill Level'].unique(), default=df['Skill Level'].unique(), key="s1")
+        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", df['Main Position'].unique(), default=df['Main Position'].unique(), key="p1")
 
-        # تطبيق الفلترة التراكمية
+        # بيانات مفلترة للبحث والإحصائيات
         f_df = df[(df['EmpGender'].isin(sel_gen)) & (df['Skill Level'].isin(sel_skill)) & (df['Main Position'].isin(sel_pos))]
 
         if menu == "📈 لوحة الإحصائيات":
-            st.header("📈 تحليل القوى العاملة (الأرقام الحالية)")
+            st.header("📊 تحليل بيانات الكوادر")
             
-            # عرض البطاقات بنمط التباين العالي الجديد
+            # البطاقات بتنسيق الوضوح العالي
             c1, c2, c3, c4 = st.columns(4)
             total = len(f_df)
             males = len(f_df[f_df['EmpGender'] == 'Male'])
             females = len(f_df[f_df['EmpGender'] == 'Female'])
             
-            c1.metric("إجمالي المختارين", total)
-            c2.metric("عدد الذكور 👨", males)
-            c3.metric("عدد الإناث 👩", females)
-            c4.metric("نسبة التوطين", f"{(females/total*100 if total>0 else 0):.1f}% إناث")
+            c1.metric("إجمالي الكادر", total)
+            c2.metric("الذكور 👨", males)
+            c3.metric("الإناث 👩", females)
+            c4.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
 
             st.divider()
 
-            # الرسوم البيانية مع إصلاح خطأ التسمية
+            # الرسوم البيانية المحسنة
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("📍 التوزيع حسب المسمى")
+                st.subheader("📍 التوزيع الوظيفي")
                 if not f_df.empty:
-                    pos_data = f_df['Main Position'].value_counts().reset_index()
-                    pos_data.columns = ['المسمى', 'العدد']
-                    fig = px.bar(pos_data, x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='GnBu')
-                    st.plotly_chart(fig, use_container_width=True)
+                    pos_count = f_df['Main Position'].value_counts().reset_index()
+                    pos_count.columns = ['المسمى', 'العدد']
+                    fig1 = px.bar(pos_count, x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='Viridis')
+                    st.plotly_chart(fig1, use_container_width=True)
 
             with col2:
-                st.subheader("📊 مستويات المهارة")
+                st.subheader("📋 حالة المهارات")
                 if not f_df.empty:
-                    skill_data = f_df['Skill Level'].value_counts().reset_index()
-                    skill_data.columns = ['المهارة', 'العدد']
-                    fig2 = px.pie(skill_data, names='المهارة', values='العدد', hole=0.5)
+                    skill_count = f_df['Skill Level'].value_counts().reset_index()
+                    skill_count.columns = ['المهارة', 'العدد']
+                    fig2 = px.pie(skill_count, names='المهارة', values='العدد', hole=0.4)
                     st.plotly_chart(fig2, use_container_width=True)
 
-        elif menu == "🔍 البحث المتقدم":
-            st.header("🔍 محرك البحث الذكي")
-            search_q = st.text_input("ابحث بالاسم أو الرقم الفردي...", key="main_search")
-            if search_q:
-                res = f_df[f_df.astype(str).apply(lambda x: x.str.contains(search_q, case=False, na=False)).any(axis=1)]
+        elif menu == "🔍 البحث والمتابعة":
+            st.header("🔍 محرك بحث الموظفين")
+            q = st.text_input("ابحث بالاسم أو الرقم الفردي...", key="search_box")
+            if q:
+                res = f_df[f_df.astype(str).apply(lambda x: x.str.contains(q, case=False, na=False)).any(axis=1)]
                 st.dataframe(res, use_container_width=True)
             else:
                 st.dataframe(f_df, use_container_width=True)
 
-        elif menu == "🚫 القائمة السوداء":
-            st.header("🚫 السجل الإداري للحالات الخاصة")
-            # الاعتماد على عمود "حالة الموظف" كما طلبت
-            bl = df[df['حالة الموظف'].isin(['Blacklist', 'مستقيل'])]
-            st.error(f"تنبيه: تم تسجيل {len(bl)} حالة (محظور/مستقيل)")
-            st.dataframe(bl, use_container_width=True)
+        elif menu == "🚫 قائمة Blacklist":
+            st.header("🚫 سجل المحظورين (Blacklist)")
+            st.info("تعرض هذه الصفحة فقط الأسماء المدرجة تحت حالة 'Blacklist' رسمياً.")
+            
+            # التعديل المطلوب: الفلترة على Blacklist فقط بغض النظر عن أي حالة أخرى
+            blacklist_only = df[df['حالة الموظف'] == 'Blacklist']
+            
+            if not blacklist_only.empty:
+                st.error(f"تنبيه: تم العثور على {len(blacklist_only)} سجل في قائمة المحظورين.")
+                # عرض الجدول بتنسيق أحمر للتحذير
+                st.dataframe(blacklist_only.style.set_properties(**{'background-color': '#fef2f2', 'color': '#991b1b', 'border-color': '#f87171'}), use_container_width=True)
+            else:
+                st.success("✅ لا توجد أسماء مدرجة في القائمة السوداء حالياً.")
 
-        # أزرار النظام
+        # أزرار التحكم
         st.sidebar.divider()
-        if st.sidebar.button("🔄 تحديث البيانات", key="sys_ref"):
+        if st.sidebar.button("🔄 تحديث البيانات"):
             st.cache_data.clear()
             st.rerun()
-        if st.sidebar.button("🚪 خروج", key="sys_out"):
+        if st.sidebar.button("🚪 تسجيل الخروج"):
             del st.session_state["password_correct"]
             st.rerun()

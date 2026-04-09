@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import plotly.express as px
 
-# --- 1. إعدادات التصميم (الوضوح العالي) ---
+# --- 1. التصميم عالي التباين ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
 st.markdown("""
@@ -20,57 +20,82 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. الدخول الآمن ---
+# --- 2. التحقق من الدخول ---
 if "password_correct" not in st.session_state:
-    st.title("🔐 دخول النظام")
-    u = st.text_input("اسم المستخدم", key="u_v4")
-    p = st.text_input("كلمة المرور", type="password", key="p_v4")
+    st.title("🔐 تسجيل الدخول")
+    u = st.text_input("اسم المستخدم")
+    p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
-        if u == "alaa" and p == "azraq2026":
+        if u == "zaid" and p == "11111":
             st.session_state["password_correct"] = True
             st.rerun()
-        else: st.error("❌ خطأ في البيانات")
+        else: st.error("❌ البيانات خاطئة")
     st.stop()
 
-# --- 3. جلب وتنظيف البيانات ---
+# --- 3. تحميل البيانات مع تنظيف الأعمدة ---
 @st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
         res = requests.get(URL)
         data = pd.read_excel(BytesIO(res.content))
-        # تنظيف شامل للبيانات لمنع اختفاء النتائج
+        # تنظيف البيانات لضمان عمل الفلاتر والبحث
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip().replace('nan', '')
         return data
-    except: return None
+    except Exception as e:
+        st.error(f"خطأ في التحميل: {e}")
+        return None
 
 df = load_data()
 
 if df is not None:
-    # --- 4. الشريط الجانبي ---
+    # --- 4. القائمة الجانبية ---
     st.sidebar.image("bdc_logo.png", width=150)
-    menu = st.sidebar.radio("القائمة:", ["🔍 محرك البحث التاريخي", "📊 الإحصائيات العامة", "🚫 القائمة السوداء"])
+    menu = st.sidebar.radio("القائمة الرئيسية:", ["🔍 محرك البحث التاريخي", "📊 الإحصائيات العامة", "🚫 القائمة السوداء"])
     
-    # تحديث الفلاتر الجانبية لضمان عمل الإحصائيات
-    st.sidebar.divider()
-    all_genders = df['EmpGender'].unique().tolist()
-    all_skills = df['Skill Level'].unique().tolist()
-    all_positions = df['Main Position'].unique().tolist()
+    # تعريف القيم الافتراضية للفلاتر لضمان عمل الإحصائيات
+    all_genders = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
+    all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
 
     if menu == "🔍 محرك البحث التاريخي":
-        st.header("🔍 البحث عن موظف (السجل الكامل)")
-        q = st.text_input("ابحث بـ (Name, Case Number, Individual Number, الرقم الأمني, رقم الهاتف)", key="s_v4")
+        st.header("🔍 البحث عن السجل الوظيفي")
+        query = st.text_input("ابحث بـ (Name, Case Number, Individual Number, الرقم الأمني, رقم الهاتف)", key="search_input")
         
-        if q:
-            # البحث في الأعمدة المطلوبة فقط
+        if query:
+            # الأعمدة المحددة للبحث
             search_cols = ['Name', 'Case Number', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
-            valid_search_cols = [c for c in search_cols if c in df.columns]
+            available_search = [c for c in search_cols if c in df.columns]
             
-            # فلترة النتائج بناءً على النص المدخل
-            results = df[df[valid_search_cols].apply(lambda row: row.str.contains(q, case=False, na=False).any(), axis=1)]
+            # البحث عن التطابق
+            mask = df[available_search].apply(lambda x: x.str.contains(query, case=False, na=False)).any(axis=1)
+            results = df[mask]
 
             if not results.empty:
-                # عرض بطاقة سريعة لأول نتيجة
-                main_ind = results.iloc[0]['Individual Number']
-                full_history = df[df['Individual Number'] == main
+                # جلب التاريخ الكامل بناءً على الرقم الفردي لأول نتيجة تظهر
+                main_id = results.iloc[0].get('Individual Number', '')
+                # إصلاح السطر الذي سبب الخطأ في الصورة
+                full_history = df[df['Individual Number'] == main_id]
+                
+                st.subheader(f"👤 السجل الخاص بـ: {results.iloc[0].get('Name', 'غير معروف')}")
+                
+                # بطاقات ملخصة باللون الداكن
+                c1, c2, c3 = st.columns(3)
+                c1.metric("عدد مرات التوظيف", len(full_history))
+                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
+                c3.metric("رقم الهاتف", full_history.iloc[-1].get('رقم الهاتف', 'N/A'))
+
+                st.write("📋 **البيانات التاريخية المستخرجة:**")
+                # إظهار جدول الشخص المبحوث عنه فقط كما طلبت
+                st.dataframe(full_history, use_container_width=True)
+            else:
+                st.warning("⚠️ لا توجد نتائج مطابقة.")
+
+    elif menu == "📊 الإحصائيات العامة":
+        st.header("📊 تحليل بيانات الكوادر")
+        # فلاتر لضمان عدم اختفاء النتائج
+        sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
+        
+        stat_df = df[df['EmpGender'].isin(sel_gen)]
+        
+        if not stat_df.

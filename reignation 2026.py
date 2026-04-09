@@ -47,7 +47,7 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # --- 4. القائمة الجانبية والفلاتر المرنة ---
+    # --- 4. القائمة الجانبية والفلاتر ---
     st.sidebar.image("bdc_logo.png", width=150)
     menu = st.sidebar.radio("القائمة:", ["🔍 البحث التاريخي", "📊 الإحصائيات المرنة", "🚫 Blacklist"])
     
@@ -55,6 +55,8 @@ if df is not None:
     all_genders = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
     all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
     all_skills = sorted(df['Skill Level'].unique().tolist()) if 'Skill Level' in df.columns else []
+    # إضافة خيارات المشاريع
+    all_projects = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
 
     if menu == "🔍 البحث التاريخي":
         st.header("🔍 البحث عن السجل الوظيفي")
@@ -74,15 +76,18 @@ if df is not None:
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
         
-        # الفلاتر الجانبية المتعددة (Multi-select)
         st.sidebar.divider()
         st.sidebar.subheader("🎯 تخصيص العرض")
+        
+        # إضافة فلتر المشروع الجديد
+        sel_proj = st.sidebar.multiselect("المشروع (Project):", all_projects, default=all_projects)
         sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
         sel_skill = st.sidebar.multiselect("مستوى المهارة:", all_skills, default=all_skills)
         sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", all_positions, default=all_positions[:5] if len(all_positions)>5 else all_positions)
 
-        # تطبيق الفلترة المرنة
-        f_df = df[(df['EmpGender'].isin(sel_gen)) & 
+        # تطبيق الفلترة المرنة شاملة المشروع
+        f_df = df[(df['Project'].isin(sel_proj)) & 
+                  (df['EmpGender'].isin(sel_gen)) & 
                   (df['Skill Level'].isin(sel_skill)) & 
                   (df['Main Position'].isin(sel_pos))]
 
@@ -96,26 +101,26 @@ if df is not None:
             c1.metric("إجمالي الفئة المختارة", total)
             c2.metric("الذكور 👨", males)
             c3.metric("الإناث 👩", females)
-            c4.metric("التوازن", f"{(females/total*100 if total>0 else 0):.1f}% إناث")
+            c4.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
 
             st.divider()
 
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("📍 التوزيع الوظيفي")
+                st.subheader("📍 التوزيع حسب المسمى")
                 pos_counts = f_df['Main Position'].value_counts().reset_index()
                 pos_counts.columns = ['المسمى', 'العدد']
                 fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='Blues')
                 st.plotly_chart(fig1, use_container_width=True)
 
             with col2:
-                st.subheader("📋 مهارات الكادر")
-                skill_counts = f_df['Skill Level'].value_counts().reset_index()
-                skill_counts.columns = ['المهارة', 'العدد']
-                fig2 = px.pie(skill_counts, names='المهارة', values='العدد', hole=0.4)
+                st.subheader("🏗️ التوزيع حسب المشروع")
+                proj_counts = f_df['Project'].value_counts().reset_index()
+                proj_counts.columns = ['المشروع', 'العدد']
+                fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
                 st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.info("⚠️ الرجاء اختيار مسميات وظيفية من القائمة الجانبية لعرض النتائج.")
+            st.info("⚠️ الرجاء اختيار الخيارات من القائمة الجانبية لعرض النتائج.")
 
     elif menu == "🚫 Blacklist":
         st.header("🚫 سجل المحظورين")
@@ -127,6 +132,6 @@ if df is not None:
 
     # أزرار النظام
     st.sidebar.divider()
-    if st.sidebar.button("🔄 تحديث"):
+    if st.sidebar.button("🔄 تحديث البيانات"):
         st.cache_data.clear()
         st.rerun()

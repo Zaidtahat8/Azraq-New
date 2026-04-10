@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import plotly.express as px
 
-# --- 1. إعدادات التصميم والتباين ---
+# --- 1. إعدادات التصميم (الوضوح العالي) ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
 st.markdown("""
@@ -22,7 +22,7 @@ st.markdown("""
 
 # --- 2. نظام الدخول ---
 if "password_correct" not in st.session_state:
-    st.title("🔐 بوابة الموارد البشرية - BDC")
+    st.title("🔐 بوابة إدارة الموارد البشرية")
     u = st.text_input("اسم المستخدم")
     p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
@@ -42,22 +42,15 @@ def load_data():
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip().replace('nan', '')
         return data
-    except Exception as e:
-        st.error(f"خطأ في الاتصال: {e}")
-        return None
+    except: return None
 
 df = load_data()
 
 if df is not None:
-    # --- 4. الشريط الجانبي والفلاتر المرنة ---
+    # --- 4. الشريط الجانبي ---
     st.sidebar.image("bdc_logo.png", width=150)
     menu = st.sidebar.radio("القائمة الرئيسية:", ["🔍 محرك البحث التاريخي", "📊 الإحصائيات المرنة", "🚫 القائمة السوداء"])
     
-    # خيارات الفلاتر
-    all_projects = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
-    all_genders = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
-    all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
-
     if menu == "🔍 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
         q = st.text_input("ابحث بـ (الاسم، رقم الكيس، الرقم الفردي، الرقم الأمني، الهاتف)")
@@ -69,72 +62,62 @@ if df is not None:
             results = df[mask]
 
             if not results.empty:
-                # ميزة "كم مرة توظف عنا"
                 main_id = results.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 
                 st.subheader(f"👤 ملف الموظف: {results.iloc[0].get('Name', 'N/A')}")
                 
-                # بطاقات التفاصيل التاريخية
+                # عرض الإحصائيات (مع معالجة خطأ KeyError)
                 c1, c2, c3 = st.columns(3)
-                num_contracts = len(full_history)
-                c1.metric("إجمالي مرات التوظيف", f"{num_contracts} عقود")
+                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
                 
-                years = sorted(full_history['Year'].unique())
-                c2.metric("أول سنة تعاقد", years[0] if years else "N/A")
-                c3.metric("آخر سنة تعاقد", years[-1] if years else "N/A")
+                # التحقق من وجود عمود السنة أو التاريخ
+                year_col = 'Year' if 'Year' in full_history.columns else None
+                if year_col:
+                    years = sorted(full_history[year_col].unique())
+                    c2.metric("أول سنة تعاقد", years[0])
+                    c3.metric("آخر سنة تعاقد", years[-1])
+                else:
+                    c2.metric("الحالة", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
 
                 st.divider()
+                st.write("📅 **تفاصيل الفترات والمشاريع:**")
                 
-                # عرض تواريخ التعاقد بالتفصيل (الميزة المطلوبة)
-                st.write("📅 **الخط الزمني للتعاقدات (التواريخ والمشاريع):**")
+                # اختيار أعمدة العرض المتاحة فقط
                 display_cols = ['Year', 'Project', 'Main Position', 'Start Date', 'End Date', 'حالة الموظف']
-                actual_cols = [c for c in display_cols if c in full_history.columns]
+                actual_display = [c for c in display_cols if c in full_history.columns]
                 
-                # ترتيب تنازلي من الأحدث للأقدم
-                st.table(full_history[actual_cols].sort_values(by='Year', ascending=False))
-                
-                with st.expander("🔎 عرض ملف البيانات التقنية"):
-                    st.dataframe(full_history, use_container_width=True)
+                st.table(full_history[actual_display])
             else:
-                st.warning("⚠️ لا توجد سجلات مطابقة.")
+                st.warning("⚠️ لا توجد نتائج.")
 
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة")
-        st.sidebar.divider()
+        
+        # استخراج خيارات الفلترة
+        all_projs = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
+        all_gens = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
+        
         st.sidebar.subheader("🎯 تخصيص العرض")
-        sel_proj = st.sidebar.multiselect("المشاريع:", all_projects, default=all_projects)
-        sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
-        
-        # تطبيق الفلترة المرنة
+        sel_proj = st.sidebar.multiselect("المشاريع:", all_projs, default=all_projs)
+        sel_gen = st.sidebar.multiselect("الجنس:", all_gens, default=all_gens)
+
         f_df = df[(df['Project'].isin(sel_proj)) & (df['EmpGender'].isin(sel_gen))]
-        
+
         if not f_df.empty:
-            # نتائج التحليل بتنسيق البطاقات الداكنة
             c1, c2, c3 = st.columns(3)
-            total = len(f_df)
-            c1.metric("إجمالي الفئة", total)
-            c2.metric("ذكور 👨", len(f_df[f_df['EmpGender'].str.contains('Male', case=False)]))
-            c3.metric("إناث 👩", len(f_df[f_df['EmpGender'].str.contains('Female', case=False)]))
+            c1.metric("العدد المفلتر", len(f_df))
+            c2.metric("إناث 👩", len(f_df[f_df['EmpGender'].str.contains('Female', case=False)]))
+            c3.metric("ذكور 👨", len(f_df[f_df['EmpGender'].str.contains('Male', case=False)]))
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المشاريع المختارة"), use_container_width=True)
-            with col2:
-                pos_data = f_df['Main Position'].value_counts().reset_index().head(10)
-                pos_data.columns = ['المسمى', 'العدد']
-                st.plotly_chart(px.bar(pos_data, x='العدد', y='المسمى', orientation='h', title="أعلى 10 مسميات"), use_container_width=True)
+            st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المشاريع"), use_container_width=True)
         else:
-            st.info("💡 استخدم القائمة الجانبية لتحديد المشاريع.")
+            st.info("💡 اختر من القائمة الجانبية لتحديث البيانات.")
 
     elif menu == "🚫 القائمة السوداء":
-        st.header("🚫 سجل الحالات المحظورة")
+        st.header("🚫 المحظورون")
         bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
-        if not bl_df.empty:
-            st.error(f"تنبيه: تم العثور على {len(bl_df)} سجل محظور.")
-            st.dataframe(bl_df, use_container_width=True)
-        else:
-            st.success("✅ القائمة نظيفة.")
+        st.dataframe(bl_df)
 
     # أزرار التحكم
     st.sidebar.divider()

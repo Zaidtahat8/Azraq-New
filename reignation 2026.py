@@ -26,7 +26,7 @@ if "password_correct" not in st.session_state:
     u = st.text_input("اسم المستخدم")
     p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
-        if u == "alaa" and p == "azraq2026":
+        if u == "zaid" and p == "11111":
             st.session_state["password_correct"] = True
             st.rerun()
         else: st.error("❌ بيانات الدخول خاطئة")
@@ -51,45 +51,46 @@ if df is not None:
     st.sidebar.image("bdc_logo.png", width=150)
     menu = st.sidebar.radio("القائمة الرئيسية:", ["🔍 محرك البحث التاريخي", "📊 الإحصائيات المرنة", "🚫 القائمة السوداء"])
     
-    if menu == "🔍 محرك البحث التاريخي":
-        st.header("🔍 السجل الوظيفي والخط الزمني")
+  if menu == "🔍 محرك البحث التاريخي":
+        st.header("🔍 السجل الوظيفي والتحقق من البيانات")
         q = st.text_input("ابحث بـ (الاسم، رقم الكيس، الرقم الفردي، الرقم الأمني، الهاتف)")
         
         if q:
+            # معايير البحث الخمسة
             search_cols = ['Name', 'Case Number', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
             available = [c for c in search_cols if c in df.columns]
             mask = df[available].apply(lambda x: x.str.contains(q, case=False, na=False)).any(axis=1)
             results = df[mask]
 
             if not results.empty:
+                # جلب كافة سجلات الموظف بناءً على الرقم الفردي لضمان الدقة التاريخية
                 main_id = results.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 
                 st.subheader(f"👤 ملف الموظف: {results.iloc[0].get('Name', 'N/A')}")
                 
-                # عرض الإحصائيات (مع معالجة خطأ KeyError)
+                # بطاقات ملخصة سريعة
                 c1, c2, c3 = st.columns(3)
-                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
+                c1.metric("عدد مرات التوظيف", f"{len(full_history)} عقود")
                 
-                # التحقق من وجود عمود السنة أو التاريخ
-                year_col = 'Year' if 'Year' in full_history.columns else None
-                if year_col:
-                    years = sorted(full_history[year_col].unique())
-                    c2.metric("أول سنة تعاقد", years[0])
-                    c3.metric("آخر سنة تعاقد", years[-1])
-                else:
-                    c2.metric("الحالة", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
-
+                # التحقق من وجود الأعمدة لتفادي KeyError
+                last_status = full_history.iloc[-1].get('حالة الموظف', 'N/A')
+                c2.metric("الحالة الأخيرة", last_status)
+                
+                # عرض جدول الإكسل الكامل للموظف (طلبك الأساسي)
+                st.write("📂 **بيانات الإكسل الكاملة لهذا الموظف:**")
+                st.dataframe(full_history, use_container_width=True)
+                
                 st.divider()
-                st.write("📅 **تفاصيل الفترات والمشاريع:**")
                 
-                # اختيار أعمدة العرض المتاحة فقط
-                display_cols = ['Year', 'Project', 'Main Position', 'Start Date', 'End Date', 'حالة الموظف']
-                actual_display = [c for c in display_cols if c in full_history.columns]
+                # جدول زمني مختصر للتواريخ
+                st.write("📅 **الخط الزمني المختصر (Start/End Dates):**")
+                timeline_cols = ['Year', 'Project', 'Main Position', 'Start Date', 'End Date']
+                actual_timeline = [c for c in timeline_cols if c in full_history.columns]
+                st.table(full_history[actual_timeline].sort_values(by='Year', ascending=False) if 'Year' in full_history.columns else full_history[actual_timeline])
                 
-                st.table(full_history[actual_display])
             else:
-                st.warning("⚠️ لا توجد نتائج.")
+                st.warning("⚠️ لم يتم العثور على نتائج تطابق هذا البحث.")
 
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة")

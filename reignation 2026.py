@@ -111,7 +111,7 @@ if df is not None:
                 st.warning("⚠️ لا توجد نتائج.")
 
     # 3. الإحصائيات
-       elif menu == "📊 الإحصائيات المرنة":
+    elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
         
         st.sidebar.divider()

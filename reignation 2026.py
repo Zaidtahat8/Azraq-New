@@ -58,12 +58,12 @@ if df is not None:
     # إضافة خيارات المشاريع
     all_projects = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
 
-    if menu == "🔍 محرك البحث التاريخي":
-        st.header("🔍 البحث الشامل والسجل التاريخي")
-        q = st.text_input("ابحث بـ (Name, Case Number, Individual Number, الرقم الأمني, رقم الهاتف)")
+   if menu == "🔍 محرك البحث التاريخي":
+        st.header("🔍 السجل التاريخي والتحقق من العقود")
+        q = st.text_input("ابحث بـ (الاسم، رقم الكيس، الرقم الفردي، الرقم الأمني، أو الهاتف)")
         
         if q:
-            # تحديد أعمدة البحث
+            # معايير البحث الخمسة
             search_cols = ['Name', 'Case Number', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
             available = [c for c in search_cols if c in df.columns]
             
@@ -71,42 +71,40 @@ if df is not None:
             results = df[mask]
 
             if not results.empty:
-                # الاعتماد على Individual Number لجلب كل السجلات التاريخية
+                # جلب التاريخ الكامل باستخدام الرقم الفردي
                 main_id = results.iloc[0].get('Individual Number', '')
-                # تصفية الجدول الأصلي لجلب كل عقود هذا الشخص
                 full_history = df[df['Individual Number'] == main_id].copy()
                 
-                # تحويل التواريخ لتنسيق واضح (إذا كانت متوفرة)
-                date_cols = ['Start Date', 'End Date']
-                for col in date_cols:
-                    if col in full_history.columns:
-                        full_history[col] = pd.to_view(full_history[col]).fillna('غير محدد')
-
-                st.subheader(f"👤 ملف الموظف: {results.iloc[0].get('Name', 'N/A')}")
+                # عرض الاسم في الأعلى
+                st.subheader(f"👤 الموظف: {results.iloc[0].get('Name', 'N/A')}")
                 
-                # بطاقات تفصيلية
+                # بطاقات تفصيلية توضح "كم مرة توظف"
                 c1, c2, c3 = st.columns(3)
                 num_contracts = len(full_history)
-                c1.metric("إجمالي مرات التوظيف", f"{num_contracts} مرات")
-                c2.metric("أول تاريخ تعاقد", full_history.sort_values('Year').iloc[0].get('Start Date', 'N/A'))
-                c3.metric("آخر تاريخ تعاقد", full_history.sort_values('Year').iloc[-1].get('Start Date', 'N/A'))
+                c1.metric("عدد مرات التوظيف", f"{num_contracts} عقود")
+                
+                # إظهار أول وآخر سنة تعاقد معنا
+                years = sorted(full_history['Year'].unique())
+                c2.metric("أول سنة تعاقد", years[0] if years else "N/A")
+                c3.metric("آخر سنة تعاقد", years[-1] if years else "N/A")
 
                 st.divider()
                 
-                # عرض التواريخ والمسميات في جدول مخصص
-                st.write("📅 **تفاصيل التوظيف التاريخية (بالتواريخ):**")
+                # جدول التواريخ التفصيلي (الذي طلبته)
+                st.write("📅 **سجل الفترات والتواريخ:**")
                 
-                # اختيار أعمدة محددة للعرض لتركيز الانتباه
-                display_cols = ['Year', 'Project', 'Main Position', 'Start Date', 'End Date', 'حالة الموظف']
-                actual_display = [c for c in display_cols if c in full_history.columns]
+                # اختيار الأعمدة المهمة للجدول الزمني
+                timeline_cols = ['Year', 'Project', 'Main Position', 'Start Date', 'End Date', 'حالة الموظف']
+                actual_cols = [c for c in timeline_cols if c in full_history.columns]
                 
-                # عرض الجدول مرتباً من الأحدث للقديم
-                st.table(full_history[actual_display].sort_values(by='Year', ascending=False))
+                # عرض الجدول بشكل ثابت وواضح مرتباً تنازلياً
+                st.table(full_history[actual_cols].sort_values(by='Year', ascending=False))
                 
-                with st.expander("🔍 عرض كافة بيانات السجل (Dataframe)"):
+                # خيار لعرض كل البيانات الأخرى إذا احتجت
+                with st.expander("🔎 عرض البيانات التقنية الكاملة لهذا الملف"):
                     st.dataframe(full_history, use_container_width=True)
             else:
-                st.warning("⚠️ لم يتم العثور على موظف بهذه البيانات.")
+                st.warning("⚠️ لا توجد بيانات مطابقة لهذا البحث.")
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
         

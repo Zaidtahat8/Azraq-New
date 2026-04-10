@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import plotly.express as px
 
-# --- إعدادات الصفحة ---
+# --- إعدادات الصفحة والتصميم ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
 st.markdown("""
@@ -44,36 +44,57 @@ def load_data():
 
 df = load_data()
 
-# --- القوائم الرئيسية ---
+# --- القوائم الرئيسية (تمت إضافة البحث العام) ---
 if df is not None:
     st.sidebar.image("bdc_logo.png", width=150)
-    menu = st.sidebar.radio("القائمة الرئيسية:", ["🔍 محرك البحث التاريخي", "📊 الإحصائيات المرنة", "🚫 القائمة السوداء"])
+    menu = st.sidebar.radio("القائمة الرئيسية:", [
+        "🔍 البحث العام", 
+        "🔍 محرك البحث التاريخي", 
+        "📊 الإحصائيات المرنة", 
+        "🚫 القائمة السوداء"
+    ])
     
-    if menu == "🔍 محرك البحث التاريخي":
-        st.header("🔍 السجل الوظيفي والخط الزمني")
-        q = st.text_input("ابحث بـ (الاسم، رقم الكيس، الرقم الفردي، الرقم الأمني، الهاتف)")
+    # 1. قسم البحث العام (الطلب الجديد)
+    if menu == "🔍 البحث العام":
+        st.header("🔍 محرك البحث عن المتطوعين")
+        q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
         
         if q:
-            search_cols = ['Name', 'Case Number', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
-            
-            # تم تعديل هذه الأسطر لتجنب التقطيع
-            available = []
-            for c in search_cols:
-                if c in df.columns:
-                    available.append(c)
+            # معايير البحث المحددة
+            search_cols = ['Name', 'Individual Number', 'رقم الهاتف']
+            available = [c for c in search_cols if c in df.columns]
             
             mask = df[available].apply(lambda x: x.str.contains(q, case=False, na=False)).any(axis=1)
             results = df[mask]
-
+            
             if not results.empty:
-                main_id = results.iloc[0].get('Individual Number', '')
+                st.success(f"تم العثور على {len(results)} سجل.")
+                st.dataframe(results, use_container_width=True)
+            else:
+                st.warning("⚠️ لا توجد نتائج.")
+
+    # 2. قسم البحث التاريخي
+    elif menu == "🔍 محرك البحث التاريخي":
+        st.header("🔍 السجل الوظيفي والخط الزمني")
+        q_hist = st.text_input("ابحث بـ (الاسم، رقم الكيس، الرقم الفردي، الرقم الأمني، الهاتف)")
+        
+        if q_hist:
+            search_cols_hist = ['Name', 'Case Number', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
+            available_hist = [c for c in search_cols_hist if c in df.columns]
+            
+            mask_hist = df[available_hist].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
+            results_hist = df[mask_hist]
+
+            if not results_hist.empty:
+                main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 
-                st.subheader(f"👤 ملف الموظف: {results.iloc[0].get('Name', 'N/A')}")
+                st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 
                 c1, c2, c3 = st.columns(3)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
                 
+                # التحقق من عمود السنة لتفادي KeyError
                 year_col = 'Year' if 'Year' in full_history.columns else None
                 if year_col:
                     years = sorted(full_history[year_col].unique())
@@ -86,53 +107,27 @@ if df is not None:
                 st.divider()
                 st.write("📂 **بيانات الإكسل الكاملة للموظف:**")
                 st.dataframe(full_history, use_container_width=True)
-                
-                st.divider()
-                st.write("📅 **سجل الفترات والمشاريع (مختصر):**")
-                display_cols = ['Year', 'Project', 'Main Position', 'Start Date', 'End Date', 'حالة الموظف']
-                
-                # تم تعديل هذه الأسطر لتجنب التقطيع
-                actual_display = []
-                for c in display_cols:
-                    if c in full_history.columns:
-                        actual_display.append(c)
-                
-                if year_col:
-                    st.table(full_history[actual_display].sort_values(by=year_col, ascending=False))
-                else:
-                    st.table(full_history[actual_display])
-                    
             else:
-                st.warning("⚠️ لا توجد نتائج مطابقة.")
+                st.warning("⚠️ لا توجد نتائج.")
 
+    # 3. الإحصائيات
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة")
-        
         all_projs = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
-        all_gens = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
-        
-        st.sidebar.subheader("🎯 تخصيص العرض")
         sel_proj = st.sidebar.multiselect("المشاريع:", all_projs, default=all_projs)
-        sel_gen = st.sidebar.multiselect("الجنس:", all_gens, default=all_gens)
-
-        f_df = df[(df['Project'].isin(sel_proj)) & (df['EmpGender'].isin(sel_gen))]
-
+        
+        f_df = df[df['Project'].isin(sel_proj)]
         if not f_df.empty:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("العدد المفلتر", len(f_df))
-            c2.metric("إناث 👩", len(f_df[f_df['EmpGender'].str.contains('Female', case=False)]))
-            c3.metric("ذكور 👨", len(f_df[f_df['EmpGender'].str.contains('Male', case=False)]))
-            
+            st.metric("إجمالي العدد", len(f_df))
             st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المشاريع"), use_container_width=True)
-        else:
-            st.info("💡 اختر من القائمة الجانبية لتحديث البيانات.")
 
+    # 4. القائمة السوداء
     elif menu == "🚫 القائمة السوداء":
         st.header("🚫 المحظورون")
         bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
         st.dataframe(bl_df, use_container_width=True)
 
-    # أزرار التحديث
+    # أزرار التحديث في الشريط الجانبي
     st.sidebar.divider()
     if st.sidebar.button("🔄 تحديث البيانات"):
         st.cache_data.clear()

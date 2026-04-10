@@ -21,7 +21,7 @@ if "password_correct" not in st.session_state:
     u = st.text_input("اسم المستخدم")
     p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
-        if u == "alaa" and p == "azraq2026":
+        if u == "zaid" and p == "11111":
             st.session_state["password_correct"] = True
             st.rerun()
         else:

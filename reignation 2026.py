@@ -53,7 +53,7 @@ if df is not None:
     all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
 
     st.sidebar.image("bdc_logo.png", width=150)
-    menu = st.sidebar.radio("القائمة الرئيسية:", [
+    menu = st.sidebar.radio("القائمة الرئيسية", [
         "🔍 البحث العام", 
         "🔍 محرك البحث التاريخي", 
         "📊 الإحصائيات المرنة", 

@@ -65,17 +65,26 @@ if df is not None:
             results = df[mask]
             st.dataframe(results, use_container_width=True) if not results.empty else st.warning("⚠️ لا توجد نتائج.")
 
-    # 🔍 محرك البحث التاريخي
+    # --- قسم البحث التاريخي ---
     elif menu == "🔍 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
-        q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، أو الهاتف)")
+        q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
         if q_hist:
-            mask_hist = df[['Name', 'Individual Number', 'رقم الهاتف']].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
+            search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
+            available_hist = [c for c in search_cols_hist if c in df.columns]
+            mask_hist = df[available_hist].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
             results_hist = df[mask_hist]
+
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
+                
+                c1, c2 = st.columns(2)
+                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
+                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
+                
+                st.write("📂 **بيانات الإكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("⚠️ لا توجد نتائج.")

@@ -204,17 +204,38 @@ if df is not None:
         else:
             st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
- # --- قسم القائمة السوداء ---
+# --- قسم القائمة السوداء المطور ---
     elif menu == "🚫 القائمة السوداء":
-        st.header("🚫 سجل الحالات المحظورة")
-        if 'حالة الموظف' in df.columns:
-            bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
-            st.dataframe(bl_df, use_container_width=True)
-        else:
-            st.info("عمود الحالة غير متوفر.")
+        st.header("🚫 إدارة وسجل الحالات المحظورة")
+        
+        # 1. إضافة خانة البحث المخصص داخل القائمة السوداء
+        search_query = st.text_input("🔍 ابحث في القائمة السوداء (الاسم، الرقم الفردي، الرقم الأمني، أو الهاتف)")
 
-    # أزرار التحكم
-    st.sidebar.divider()
-    if st.sidebar.button("🔄 تحديث البيانات"):
-        st.cache_data.clear()
-        st.rerun()
+        if 'حالة الموظف' in df.columns:
+            # تصفية البيانات الأساسية للقائمة السوداء أولاً
+            bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)].copy()
+            
+            # 2. تطبيق البحث إذا قام المستخدم بإدخال نص
+            if search_query:
+                # تحديد الأعمدة التي سيتم البحث فيها
+                search_cols = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
+                # التأكد من وجود هذه الأعمدة في الملف لتجنب الأخطاء
+                available_search_cols = [col for col in search_cols if col in bl_df.columns]
+                
+                # إجراء عملية البحث (تجاهل حالة الأحرف)
+                mask = bl_df[available_search_cols].apply(
+                    lambda x: x.str.contains(search_query, case=False, na=False)
+                ).any(axis=1)
+                bl_df = bl_df[mask]
+
+            # 3. عرض النتائج
+            if not bl_df.empty:
+                st.warning(f"⚠️ تم العثور على {len(bl_df)} حالة محظورة.")
+                st.dataframe(bl_df, use_container_width=True)
+            else:
+                if search_query:
+                    st.info("ℹ️ لا توجد نتائج تطابق بحثك في القائمة السوداء.")
+                else:
+                    st.success("✅ لا توجد حالات محظورة مسجلة حالياً.")
+        else:
+            st.error("⚠️ عمود 'حالة الموظف' غير موجود في قاعدة البيانات.")

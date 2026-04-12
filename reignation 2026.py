@@ -54,7 +54,7 @@ if df is not None:
         "🚫 القائمة السوداء"
     ])
     
-    # 🔍 قسم البحث العام
+       # --- قسم البحث العام ---
     if menu == "🔍 البحث العام":
         st.header("🔍 محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
@@ -63,7 +63,11 @@ if df is not None:
             available = [c for c in search_cols if c in df.columns]
             mask = df[available].apply(lambda x: x.str.contains(q, case=False, na=False)).any(axis=1)
             results = df[mask]
-            st.dataframe(results, use_container_width=True) if not results.empty else st.warning("⚠️ لا توجد نتائج.")
+            if not results.empty:
+                st.success(f"تم العثور على {len(results)} سجل.")
+                st.dataframe(results, use_container_width=True)
+            else:
+                st.warning("⚠️ لا توجد نتائج.")
 
     # --- قسم البحث التاريخي ---
     elif menu == "🔍 محرك البحث التاريخي":

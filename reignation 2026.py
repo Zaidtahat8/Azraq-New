@@ -99,42 +99,64 @@ if df is not None:
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # 📊 قسم الإحصائيات (حل أخطاء الفلترة)
+    # --- قسم الإحصائيات (تعديلك الجديد) ---
     elif menu == "📊 الإحصائيات المرنة":
-        st.header("📊 تحليل القوى العاملة")
+        st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
+        
         st.sidebar.divider()
-        sel_proj = st.sidebar.multiselect("المشاريع:", all_projects, default=all_projects)
+        st.sidebar.subheader("🎯 تخصيص العرض")
+        
+        # الفلاتر الجانبية
+        sel_proj = st.sidebar.multiselect("المشروع (Project):", all_projects, default=all_projects)
         sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
-        
-        f_df = df[(df['Project'].isin(sel_proj)) & (df['EmpGender'].isin(sel_gen))]
-        
-        if not f_df.empty:
-            total = len(f_df)
-            females = len(f_df[f_df['EmpGender'].str.contains('Female', case=False, na=False)])
-            c1, c2, c3 = st.columns(3)
-            c1.metric("إجمالي الفئة", total)
-            c2.metric("الإناث 👩", females)
-            c3.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
-            
-            st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المتطوعين حسب المشروع"), use_container_width=True)
-        else:
-            st.info("💡 استخدم القائمة الجانبية لتصفية البيانات.")
+        sel_skill = st.sidebar.multiselect("مستوى المهارة:", all_skills, default=all_skills)
+        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", all_positions, default=all_positions[:5] if len(all_positions)>5 else all_positions)
 
-    # 🚫 القائمة السوداء (تمت إعادتها وإصلاحها)
-    elif menu == "🚫 القائمة السوداء":
-        st.header("🚫 الحالات المحظورة والمنع")
-        # التحقق من وجود العمود أولاً لتجنب الأخطاء الجانبية
-        if 'حالة الموظف' in df.columns:
-            # البحث عن كلمة Blacklist أو المنع في حالة الموظف
-            bl_mask = df['حالة الموظف'].str.contains('Blacklist|منع|محظور', case=False, na=False)
-            bl_df = df[bl_mask]
-            if not bl_df.empty:
-                st.error(f"⚠️ تم العثور على {len(bl_df)} حالة في القائمة السوداء")
-                st.dataframe(bl_df, use_container_width=True)
-            else:
-                st.success("✅ لا توجد حالات محظورة حالياً.")
+        # تطبيق الفلترة
+        f_df = df[(df['Project'].isin(sel_proj)) & 
+                  (df['EmpGender'].isin(sel_gen)) & 
+                  (df['Skill Level'].isin(sel_skill)) & 
+                  (df['Main Position'].isin(sel_pos))]
+
+        if not f_df.empty:
+            # البطاقات الرباعية
+            c1, c2, c3, c4 = st.columns(4)
+            total = len(f_df)
+            males = len(f_df[f_df['EmpGender'] == 'Male'])
+            females = len(f_df[f_df['EmpGender'] == 'Female'])
+            
+            c1.metric("إجمالي الفئة", total)
+            c2.metric("الذكور 👨", males)
+            c3.metric("الإناث 👩", females)
+            c4.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
+
+            st.divider()
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("📍 التوزيع حسب المسمى")
+                pos_counts = f_df['Main Position'].value_counts().reset_index()
+                pos_counts.columns = ['المسمى', 'العدد']
+                fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='Blues')
+                st.plotly_chart(fig1, use_container_width=True)
+
+            with col2:
+                st.subheader("🏗️ التوزيع حسب المشروع")
+                proj_counts = f_df['Project'].value_counts().reset_index()
+                proj_counts.columns = ['المشروع', 'العدد']
+                fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
+                st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.warning("⚠️ عمود 'حالة الموظف' غير موجود في الملف.")
+            st.info("⚠️ الرجاء اختيار الخيارات من القائمة الجانبية لعرض النتائج.")
+
+    # --- قسم القائمة السوداء ---
+    elif menu == "🚫 القائمة السوداء":
+        st.header("🚫 سجل الحالات المحظورة")
+        if 'حالة الموظف' in df.columns:
+            bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
+            st.dataframe(bl_df, use_container_width=True)
+        else:
+            st.info("عمود الحالة غير متوفر.")
 
     # أزرار التحكم
     st.sidebar.divider()

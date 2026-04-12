@@ -3,9 +3,6 @@ import pandas as pd
 import requests
 from io import BytesIO
 import plotly.express as px
-import datetime
-from fpdf import FPDF
-import os
 
 # --- 1. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
@@ -17,35 +14,6 @@ st.markdown("""
     div[data-testid="stMetricLabel"] { color: #cbd5e1 !important; }
     </style>
 """, unsafe_allow_html=True)
-
-# --- دالة إنشاء تقرير PDF مع الرسومات ---
-def generate_pdf_report(dataframe, total, males, females):
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # إعداد الخط (تأكد من وجود خط يدعم العربية أو استخدم الإنجليزية للعناوين حالياً لتجنب مشاكل المكتبة)
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="HR Workforce Report - Azraq 2026", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Date: {datetime.date.today()}", ln=True, align='C')
-    pdf.ln(10)
-    
-    # ملخص الأرقام
-    pdf.set_fill_color(240, 240, 240)
-    pdf.cell(190, 10, txt="Statistical Summary", ln=True, fill=True)
-    pdf.cell(190, 10, txt=f"Total Staff: {total}", ln=True)
-    pdf.cell(190, 10, txt=f"Males: {males}", ln=True)
-    pdf.cell(190, 10, txt=f"Females: {females}", ln=True)
-    pdf.ln(10)
-
-    # إضافة الرسم البياني الأول (توزيع المشاريع)
-    if 'Project' in dataframe.columns:
-        fig = px.pie(dataframe, names='Project', title="Project Distribution")
-        fig.write_image("temp_chart1.png")
-        pdf.image("temp_chart1.png", x=10, y=None, w=180)
-        os.remove("temp_chart1.png")
-    
-    return pdf.output(dest='S').encode('latin-1')
 
 # --- 2. نظام الدخول ---
 if "password_correct" not in st.session_state:
@@ -65,65 +33,131 @@ if "password_correct" not in st.session_state:
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
-        res = requests.get(URL, timeout=10)
-        if res.status_code == 200:
-            data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
-            for col in data.columns:
-                data[col] = data[col].astype(str).str.strip().replace('nan', '')
-            return data
-        return None
+        res = requests.get(URL)
+        data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+        for col in data.columns:
+            data[col] = data[col].astype(str).str.strip().replace('nan', '')
+        return data
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"خطأ في الاتصال: {e}")
         return None
 
 df = load_data()
 
-# --- 4. إدارة الواجهة ---
+# --- 4. إدارة الواجهة والقوائم ---
 if df is not None:
     st.sidebar.image("bdc_logo.png", width=150)
-    menu = st.sidebar.radio("القائمة الرئيسية", ["🔍 البحث العام", "🔍 محرك البحث التاريخي", "📊 الإحصائيات المرنة"])
+    menu = st.sidebar.radio("القائمة الرئيسية", [
+        "🔍 البحث العام", 
+        "🔍 محرك البحث التاريخي", 
+        "📊 الإحصائيات المرنة", 
+        "🚫 القائمة السوداء"
+    ])
+    
+       # --- قسم البحث العام ---
+    if menu == "🔍 البحث العام":
+        st.header("🔍 محرك البحث عن المتطوعين")
+        q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
+        if q:
+            search_cols = ['Name', 'Individual Number', 'رقم الهاتف']
+            available = [c for c in search_cols if c in df.columns]
+            mask = df[available].apply(lambda x: x.str.contains(q, case=False, na=False)).any(axis=1)
+            results = df[mask]
+            if not results.empty:
+                st.success(f"تم العثور على {len(results)} سجل.")
+                st.dataframe(results, use_container_width=True)
+            else:
+                st.warning("⚠️ لا توجد نتائج.")
 
-    if menu == "📊 الإحصائيات المرنة":
-        st.header("📊 تحليل القوى العاملة وتصدير PDF")
-        
-        # الفلاتر
+    # --- قسم البحث التاريخي ---
+    elif menu == "🔍 محرك البحث التاريخي":
+        st.header("🔍 السجل الوظيفي والخط الزمني")
+        q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
+        if q_hist:
+            search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
+            available_hist = [c for c in search_cols_hist if c in df.columns]
+            mask_hist = df[available_hist].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
+            results_hist = df[mask_hist]
+
+            if not results_hist.empty:
+                main_id = results_hist.iloc[0].get('Individual Number', '')
+                full_history = df[df['Individual Number'] == main_id].copy()
+                st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
+                
+                c1, c2 = st.columns(2)
+                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
+                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
+                
+                st.write("📂 **بيانات الإكسل الكاملة:**")
+                st.dataframe(full_history, use_container_width=True)
+            else:
+                st.warning("⚠️ لا توجد نتائج.")
+
+    # 📊 الإحصائيات المرنة (الفلترة الذكية المتقدمة المستبدلة)
+    elif menu == "📊 الإحصائيات المرنة":
+        st.header("📊 تحليل القوى العاملة (فلترة ذكية متقدمة)")
+        st.sidebar.divider()
+        st.sidebar.subheader("🎯 فلاتر متقدمة")
+
         base_df = df.copy()
-        sel_proj = st.sidebar.multiselect("المشروع:", sorted(base_df['Project'].unique()) if 'Project' in base_df.columns else [])
+
+        # الفلاتر الديناميكية
+        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", sorted(base_df['Main Position'].unique()))
+        if sel_pos: base_df = base_df[base_df['Main Position'].isin(sel_pos)]
+
+        sel_proj = st.sidebar.multiselect("المشروع:", sorted(base_df['Project'].unique()))
         if sel_proj: base_df = base_df[base_df['Project'].isin(sel_proj)]
-        
+
+        sel_gen = st.sidebar.multiselect("الجنس:", sorted(base_df['EmpGender'].unique()))
+        if sel_gen: base_df = base_df[base_df['EmpGender'].isin(sel_gen)]
+
+        sel_skill = st.sidebar.multiselect("مستوى المهارة:", sorted(base_df['Skill Level'].unique()))
+        if sel_skill: base_df = base_df[base_df['Skill Level'].isin(sel_skill)]
+
         f_df = base_df.copy()
-        
+
+        search_inside = st.text_input("🔎 بحث داخل النتائج")
+        if search_inside:
+            mask_inside = f_df.apply(lambda row: row.astype(str).str.contains(search_inside, case=False).any(), axis=1)
+            f_df = f_df[mask_inside]
+
+        total_all = len(df)
+        total_filtered = len(f_df)
+        st.markdown(f"📌 النتائج: **{total_filtered}** من أصل **{total_all}**")
+
         if not f_df.empty:
-            total = len(f_df)
+            c1, c2, c3, c4 = st.columns(4)
             males = len(f_df[f_df['EmpGender'] == 'Male'])
             females = len(f_df[f_df['EmpGender'] == 'Female'])
-            
-            c1, c2, c3 = st.columns(3)
-            c1.metric("إجمالي", total)
-            c2.metric("ذكور", males)
-            c3.metric("إناث", females)
-            
+            c1.metric("إجمالي", total_filtered)
+            c2.metric("ذكور 👨", males)
+            c3.metric("إناث 👩", females)
+            c4.metric("نسبة الإناث", f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%")
+
             st.divider()
-            
-            # --- زر تصدير PDF الجديد ---
-            st.subheader("📥 تصدير التقرير النهائي")
-            try:
-                pdf_data = generate_pdf_report(f_df, total, males, females)
-                st.download_button(
-                    label="📄 تحميل التقرير كـ PDF (مع الرسوم)",
-                    data=pdf_data,
-                    file_name=f"HR_Full_Report_{datetime.date.today()}.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e:
-                st.info("💡 ملاحظة: لتفعيل تصدير الرسوم لـ PDF، تأكد من تثبيت مكتبة 'kaleido' (pip install kaleido).")
-
-            # عرض الرسوم في الصفحة
-            st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المشاريع"), use_container_width=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                pos_counts = f_df['Main Position'].value_counts().reset_index()
+                pos_counts.columns = ['المسمى', 'العدد']
+                fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', color='العدد')
+                st.plotly_chart(fig1, use_container_width=True)
+            with col2:
+                proj_counts = f_df['Project'].value_counts().reset_index()
+                proj_counts.columns = ['المشروع', 'العدد']
+                fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
+                st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.warning("⚠️ لا توجد نتائج.")
+            st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
-    # (باقي الأقسام المعتمدة سابقاً تظل كما هي)
-    elif menu == "🔍 البحث العام":
-        # ... كود البحث العام المعتمد ...
-        pass
+    # 🚫 القائمة السوداء
+    elif menu == "🚫 القائمة السوداء":
+        st.header("🚫 سجل الحالات المحظورة")
+        if 'حالة الموظف' in df.columns:
+            bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)]
+            st.dataframe(bl_df, use_container_width=True) if not bl_df.empty else st.success("✅ لا توجد حالات محظورة.")
+
+    # أزرار التحكم
+    st.sidebar.divider()
+    if st.sidebar.button("🔄 تحديث البيانات"):
+        st.cache_data.clear()
+        st.rerun()

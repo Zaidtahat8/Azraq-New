@@ -133,9 +133,6 @@ if df is not None:
                 proj_counts.columns = ['المشروع', 'العدد']
                 fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
                 st.plotly_chart(fig2, use_container_width=True)
-
-            st.subheader("📋 البيانات المفلترة")
-            st.dataframe(f_df, use_container_width=True)
         else:
             st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 

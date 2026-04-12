@@ -199,7 +199,7 @@ elif menu == "📊 الإحصائيات المرنة":
         st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
     # --- قسم القائمة السوداء ---
-    elif menu == "🚫 القائمة السوداء":
+     elif menu == "🚫 القائمة السوداء":
         st.header("🚫 سجل الحالات المحظورة")
         if 'حالة الموظف' in df.columns:
             bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]

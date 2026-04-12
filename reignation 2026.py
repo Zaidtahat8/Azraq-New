@@ -26,13 +26,13 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
     
-    # 1. عنوان التقرير
+    # 1. عنوان التقرير (يظل كما هو)
     pdf.cell(200, 10, txt="HR Workforce Report - 2026", ln=True, align='C')
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt=f"Date: {datetime.date.today()}", ln=True, align='C')
     pdf.ln(10)
     
-    # 2. ملخص البيانات الرقمية
+    # 2. ملخص البيانات الرقمية (يظل كما هو)
     pdf.set_fill_color(200, 220, 255)
     pdf.cell(190, 10, txt="Statistical Summary", ln=True, fill=True)
     pdf.cell(95, 10, txt=f"Total Filtered: {total}", border=1)
@@ -41,21 +41,39 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     pdf.cell(95, 10, txt=f"Females: {females}", border=1, ln=True)
     pdf.ln(10)
 
-    # 3. إضافة الرسومات البيانية (الإضافة الجديدة)
+    # 3. إضافة الرسومات البيانية بالألوان الكاملة (التعديل الجديد)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(190, 10, txt="Visual Analytics - Project Distribution", ln=True)
+    pdf.ln(5)
+
     try:
-        # رسم توزيع المشاريع
+        # إنشاء الرسم البياني
         if 'Project' in dataframe.columns:
             fig_pdf = px.pie(dataframe, names='Project', title="Project Distribution")
-            # حفظ الرسم كصورة مؤقتة (يتطلب مكتبة kaleido)
-            fig_pdf.write_image("temp_pie.png")
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(190, 10, txt="Visual Analytics - Projects", ln=True)
-            pdf.image("temp_pie.png", x=15, y=None, w=150)
-            os.remove("temp_pie.png") # حذف الصورة المؤقتة بعد الإضافة
             
+            # --- التعديل الجوهري لحل مشكلة الألوان ---
+            # إجبار التنسيق على الوضع الفاتح وبخلفية بيضاء تماماً ليتناسب مع ورق الطباعة
+            fig_pdf.update_layout(
+                template="plotly_white",  # استخدام التنسيق الأبيض
+                paper_bgcolor='white',    # لونه الخلفية الورقية بيضاء
+                plot_bgcolor='white',     # لون خلفية الرسم بيضاء
+                font=dict(color="black")  # تحديد لون الخط بالأسود ليكون واضحاً
+            )
+            
+            # حفظ الرسم كصورة مؤقتة بدقة عالية
+            img_path = "temp_pie_chart.png"
+            fig_pdf.write_image(img_path, scale=2) # scale=2 لزيادة الدقة
+            
+            # إدراج الصورة في الـ PDF
+            pdf.image(img_path, x=20, y=None, w=150)
+            
+            # مسح الصورة المؤقتة
+            if os.path.exists(img_path):
+                os.remove(img_path)
+                
     except Exception as e:
         pdf.set_font("Arial", size=10)
-        pdf.cell(190, 10, txt=f"Note: Charts could not be rendered. Error: {str(e)}", ln=True)
+        pdf.cell(190, 10, txt=f"Note: Colors could not be rendered perfectly. Error: {str(e)}", ln=True)
 
     return pdf.output(dest='S').encode('latin-1', errors='replace')
 # --- 2. نظام الدخول ---

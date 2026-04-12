@@ -204,19 +204,17 @@ if df is not None:
         else:
             st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
-# --- قسم القائمة السوداء المصحح ---
-elif menu == "🚫 القائمة السوداء":
-    st.header("🚫 سجل الحالات المحظورة")
-    
-    # تأكد من أن اسم العمود 'حالة الموظف' مطابق لما في ملف الإكسل
-    if 'حالة الموظف' in df.columns:
-        # فلترة الحالات التي تحتوي على كلمة Blacklist أو منع
-        bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)]
-        
-        if not bl_df.empty:
-            # عرض الجدول فقط دون ترك أي أسطر برمجية خارج الأقواس
+ # --- قسم القائمة السوداء ---
+    elif menu == "🚫 القائمة السوداء":
+        st.header("🚫 سجل الحالات المحظورة")
+        if 'حالة الموظف' in df.columns:
+            bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
             st.dataframe(bl_df, use_container_width=True)
         else:
-            st.success("✅ لا توجد حالات محظورة حالياً.")
-    else:
-        st.error("⚠️ لم يتم العثور على عمود 'حالة الموظف' في البيانات.")
+            st.info("عمود الحالة غير متوفر.")
+
+    # أزرار التحكم
+    st.sidebar.divider()
+    if st.sidebar.button("🔄 تحديث البيانات"):
+        st.cache_data.clear()
+        st.rerun()

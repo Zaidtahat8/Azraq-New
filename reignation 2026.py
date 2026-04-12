@@ -26,21 +26,38 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
     
-    # نستخدم الإنجليزية في العناوين داخل PDF لضمان التوافق مع المكتبة دون أخطاء ترميز
+    # 1. عنوان التقرير
     pdf.cell(200, 10, txt="HR Workforce Report - 2026", ln=True, align='C')
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt=f"Date: {datetime.date.today()}", ln=True, align='C')
     pdf.ln(10)
     
+    # 2. ملخص البيانات الرقمية
     pdf.set_fill_color(200, 220, 255)
     pdf.cell(190, 10, txt="Statistical Summary", ln=True, fill=True)
     pdf.cell(95, 10, txt=f"Total Filtered: {total}", border=1)
     pdf.cell(95, 10, txt=f"Female Ratio: {ratio}", border=1, ln=True)
     pdf.cell(95, 10, txt=f"Males: {males}", border=1)
     pdf.cell(95, 10, txt=f"Females: {females}", border=1, ln=True)
-    
-    return pdf.output(dest='S').encode('latin-1', errors='replace')
+    pdf.ln(10)
 
+    # 3. إضافة الرسومات البيانية (الإضافة الجديدة)
+    try:
+        # رسم توزيع المشاريع
+        if 'Project' in dataframe.columns:
+            fig_pdf = px.pie(dataframe, names='Project', title="Project Distribution")
+            # حفظ الرسم كصورة مؤقتة (يتطلب مكتبة kaleido)
+            fig_pdf.write_image("temp_pie.png")
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(190, 10, txt="Visual Analytics - Projects", ln=True)
+            pdf.image("temp_pie.png", x=15, y=None, w=150)
+            os.remove("temp_pie.png") # حذف الصورة المؤقتة بعد الإضافة
+            
+    except Exception as e:
+        pdf.set_font("Arial", size=10)
+        pdf.cell(190, 10, txt=f"Note: Charts could not be rendered. Error: {str(e)}", ln=True)
+
+    return pdf.output(dest='S').encode('latin-1', errors='replace')
 # --- 2. نظام الدخول ---
 if "password_correct" not in st.session_state:
     st.title("🔐 بوابة إدارة الموارد البشرية")

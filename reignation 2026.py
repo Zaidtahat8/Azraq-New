@@ -3,6 +3,9 @@ import pandas as pd
 import requests
 from io import BytesIO
 import plotly.express as px
+from fpdf import FPDF
+import datetime
+import os
 
 # --- 1. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
@@ -14,6 +17,44 @@ st.markdown("""
     div[data-testid="stMetricLabel"] { color: #cbd5e1 !important; }
     </style>
 """, unsafe_allow_html=True)
+
+# --- دالة توليد تقرير PDF (الإضافة الجديدة) ---
+def create_pdf_report(dataframe, total, males, females, ratio):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    
+    # عنوان التقرير
+    pdf.cell(200, 10, txt="HR Workforce Statistics Report - 2026", ln=True, align='C')
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt=f"Report Date: {datetime.date.today()}", ln=True, align='C')
+    pdf.ln(10)
+    
+    # ملخص البيانات الرقمية
+    pdf.set_fill_color(200, 220, 255)
+    pdf.cell(190, 10, txt="Summary Indicators", ln=True, fill=True)
+    pdf.cell(95, 10, txt=f"Total Filtered: {total}", border=1)
+    pdf.cell(95, 10, txt=f"Female Ratio: {ratio}", border=1, ln=True)
+    pdf.cell(95, 10, txt=f"Males: {males}", border=1)
+    pdf.cell(95, 10, txt=f"Females: {females}", border=1, ln=True)
+    pdf.ln(10)
+    
+    # ملاحظة فنية: لطباعة الجداول الكاملة يفضل Excel، أما الـ PDF فيعرض أهم 15 سجلاً للمعاينة
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(190, 10, txt="Data Preview (Top 15 Records)", ln=True, fill=True)
+    pdf.set_font("Arial", size=10)
+    
+    # رؤوس أقلام الجدول (بالإنجليزي لضمان توافق المكتبة الافتراضي)
+    pdf.cell(60, 10, "Name", border=1)
+    pdf.cell(60, 10, "Position", border=1)
+    pdf.cell(70, 10, "Project", border=1, ln=True)
+    
+    for i, row in dataframe.head(15).iterrows():
+        pdf.cell(60, 10, str(row['Name'])[:25], border=1)
+        pdf.cell(60, 10, str(row['Main Position'])[:25], border=1)
+        pdf.cell(70, 10, str(row['Project'])[:30], border=1, ln=True)
+        
+    return pdf.output(dest='S').encode('latin-1')
 
 # --- 2. نظام الدخول ---
 if "password_correct" not in st.session_state:
@@ -54,7 +95,7 @@ if df is not None:
         "🚫 القائمة السوداء"
     ])
     
-       # --- قسم البحث العام ---
+    # --- قسم البحث العام (كما هو) ---
     if menu == "🔍 البحث العام":
         st.header("🔍 محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
@@ -69,7 +110,7 @@ if df is not None:
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- قسم البحث التاريخي ---
+    # --- قسم البحث التاريخي (كما هو) ---
     elif menu == "🔍 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
@@ -78,22 +119,19 @@ if df is not None:
             available_hist = [c for c in search_cols_hist if c in df.columns]
             mask_hist = df[available_hist].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
             results_hist = df[mask_hist]
-
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
-                
                 c1, c2 = st.columns(2)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
                 c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
-                
                 st.write("📂 **بيانات الإكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # 📊 الإحصائيات المرنة (الفلترة الذكية المتقدمة المستبدلة)
+    # 📊 الإحصائيات المرنة (مع إضافة زر التصدير)
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة (فلترة ذكية متقدمة)")
         st.sidebar.divider()
@@ -126,13 +164,29 @@ if df is not None:
         st.markdown(f"📌 النتائج: **{total_filtered}** من أصل **{total_all}**")
 
         if not f_df.empty:
-            c1, c2, c3, c4 = st.columns(4)
             males = len(f_df[f_df['EmpGender'] == 'Male'])
             females = len(f_df[f_df['EmpGender'] == 'Female'])
+            ratio_text = f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%"
+            
+            c1, c2, c3, c4 = st.columns(4)
             c1.metric("إجمالي", total_filtered)
             c2.metric("ذكور 👨", males)
             c3.metric("إناث 👩", females)
-            c4.metric("نسبة الإناث", f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%")
+            c4.metric("نسبة الإناث", ratio_text)
+
+            # --- مركز تصدير الملفات (الإضافة الجديدة) ---
+            st.divider()
+            col_pdf1, col_pdf2 = st.columns([1, 4])
+            with col_pdf1:
+                pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+                st.download_button(
+                    label="📥 تصدير PDF",
+                    data=pdf_bytes,
+                    file_name=f"HR_Report_{datetime.date.today()}.pdf",
+                    mime="application/pdf"
+                )
+            with col_pdf2:
+                st.info("💡 سيتم تصدير ملخص المؤشرات المفلترة مع قائمة لأول 15 موظف في ملف PDF.")
 
             st.divider()
             col1, col2 = st.columns(2)
@@ -149,7 +203,7 @@ if df is not None:
         else:
             st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
-    # 🚫 القائمة السوداء
+    # 🚫 القائمة السوداء (كما هي)
     elif menu == "🚫 القائمة السوداء":
         st.header("🚫 سجل الحالات المحظورة")
         if 'حالة الموظف' in df.columns:

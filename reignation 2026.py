@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import plotly.express as px
 
-# --- 1. إعدادات الصفحة ---
+# --- 1. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
 st.markdown("""
@@ -28,38 +28,37 @@ if "password_correct" not in st.session_state:
             st.error("❌ بيانات الدخول خاطئة")
     st.stop()
 
-# --- 3. جلب البيانات بحماية إضافية ---
+# --- 3. جلب البيانات (مع إصلاحات الأخطاء الجانبية) ---
 @st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
         res = requests.get(URL)
-        # استخدام engine='openpyxl' لحل مشكلة صيغة الملف (image_32f9e3.png)
+        # استخدام engine='openpyxl' لحل مشكلة الصيغة (image_32f9e3.png)
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip().replace('nan', '')
         return data
     except Exception as e:
-        st.error(f"خطأ في الاتصال أو الملف: {e}")
+        st.error(f"خطأ في الاتصال: {e}")
         return None
 
 df = load_data()
 
-# --- 4. معالجة الواجهة ---
+# --- 4. إدارة الواجهة والقوائم ---
 if df is not None:
-    # تجهيز قوائم الفلترة بشكل آمن
+    # تجهيز القوائم للفلترة بأمان
     all_projects = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
     all_genders = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
     all_skills = sorted(df['Skill Level'].unique().tolist()) if 'Skill Level' in df.columns else []
     all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
 
     st.sidebar.image("bdc_logo.png", width=150)
-    
-    # تم حذف "🚫 القائمة السوداء" من الخيارات هنا
     menu = st.sidebar.radio("القائمة الرئيسية", [
         "🔍 البحث العام", 
         "🔍 محرك البحث التاريخي", 
-        "📊 الإحصائيات المرنة"
+        "📊 الإحصائيات المرنة", 
+        "🚫 القائمة السوداء"
     ])
     
     # 🔍 قسم البحث العام
@@ -76,10 +75,10 @@ if df is not None:
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- قسم البحث التاريخي ---
+    # 🔍 قسم البحث التاريخي (حل خطأ Year و Key)
     elif menu == "🔍 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
-        q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
+        q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، أو الهاتف)")
         if q_hist:
             search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
             available_hist = [c for c in search_cols_hist if c in df.columns]
@@ -93,59 +92,49 @@ if df is not None:
                 
                 c1, c2 = st.columns(2)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
+                # استخدام get لتجنب KeyError
                 c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
                 
-                st.write("📂 **بيانات الإكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- قسم الإحصائيات ---
+    # 📊 قسم الإحصائيات (حل أخطاء الفلترة)
     elif menu == "📊 الإحصائيات المرنة":
-        st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
-        
+        st.header("📊 تحليل القوى العاملة")
         st.sidebar.divider()
-        st.sidebar.subheader("🎯 تخصيص العرض")
-        
-        sel_proj = st.sidebar.multiselect("المشروع (Project):", all_projects, default=all_projects)
+        sel_proj = st.sidebar.multiselect("المشاريع:", all_projects, default=all_projects)
         sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
-        sel_skill = st.sidebar.multiselect("مستوى المهارة:", all_skills, default=all_skills)
-        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", all_positions, default=all_positions[:5] if len(all_positions)>5 else all_positions)
-
-        f_df = df[(df['Project'].isin(sel_proj)) & 
-                  (df['EmpGender'].isin(sel_gen)) & 
-                  (df['Skill Level'].isin(sel_skill)) & 
-                  (df['Main Position'].isin(sel_pos))]
-
+        
+        f_df = df[(df['Project'].isin(sel_proj)) & (df['EmpGender'].isin(sel_gen))]
+        
         if not f_df.empty:
-            c1, c2, c3, c4 = st.columns(4)
             total = len(f_df)
-            males = len(f_df[f_df['EmpGender'] == 'Male'])
-            females = len(f_df[f_df['EmpGender'] == 'Female'])
-            
+            females = len(f_df[f_df['EmpGender'].str.contains('Female', case=False, na=False)])
+            c1, c2, c3 = st.columns(3)
             c1.metric("إجمالي الفئة", total)
-            c2.metric("الذكور 👨", males)
-            c3.metric("الإناث 👩", females)
-            c4.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
-
-            st.divider()
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("📍 التوزيع حسب المسمى")
-                pos_counts = f_df['Main Position'].value_counts().reset_index()
-                pos_counts.columns = ['المسمى', 'العدد']
-                fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='Blues')
-                st.plotly_chart(fig1, use_container_width=True)
-
-            with col2:
-                st.subheader("🏗️ التوزيع حسب المشروع")
-                proj_counts = f_df['Project'].value_counts().reset_index()
-                proj_counts.columns = ['المشروع', 'العدد']
-                fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
-                st.plotly_chart(fig2, use_container_width=True)
+            c2.metric("الإناث 👩", females)
+            c3.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
+            
+            st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المتطوعين حسب المشروع"), use_container_width=True)
         else:
-            st.info("⚠️ الرجاء اختيار الخيارات من القائمة الجانبية لعرض النتائج.")
+            st.info("💡 استخدم القائمة الجانبية لتصفية البيانات.")
+
+    # 🚫 القائمة السوداء (تمت إعادتها وإصلاحها)
+    elif menu == "🚫 القائمة السوداء":
+        st.header("🚫 الحالات المحظورة والمنع")
+        # التحقق من وجود العمود أولاً لتجنب الأخطاء الجانبية
+        if 'حالة الموظف' in df.columns:
+            # البحث عن كلمة Blacklist أو المنع في حالة الموظف
+            bl_mask = df['حالة الموظف'].str.contains('Blacklist|منع|محظور', case=False, na=False)
+            bl_df = df[bl_mask]
+            if not bl_df.empty:
+                st.error(f"⚠️ تم العثور على {len(bl_df)} حالة في القائمة السوداء")
+                st.dataframe(bl_df, use_container_width=True)
+            else:
+                st.success("✅ لا توجد حالات محظورة حالياً.")
+        else:
+            st.warning("⚠️ عمود 'حالة الموظف' غير موجود في الملف.")
 
     # أزرار التحكم
     st.sidebar.divider()

@@ -28,13 +28,12 @@ if "password_correct" not in st.session_state:
             st.error("❌ بيانات الدخول خاطئة")
     st.stop()
 
-# --- 3. جلب البيانات (مع إصلاحات الأخطاء الجانبية) ---
+# --- 3. جلب البيانات ---
 @st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
         res = requests.get(URL)
-        # استخدام engine='openpyxl' لحل مشكلة الصيغة (image_32f9e3.png)
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip().replace('nan', '')
@@ -47,12 +46,6 @@ df = load_data()
 
 # --- 4. إدارة الواجهة والقوائم ---
 if df is not None:
-    # تجهيز القوائم للفلترة بأمان
-    all_projects = sorted(df['Project'].unique().tolist()) if 'Project' in df.columns else []
-    all_genders = sorted(df['EmpGender'].unique().tolist()) if 'EmpGender' in df.columns else []
-    all_skills = sorted(df['Skill Level'].unique().tolist()) if 'Skill Level' in df.columns else []
-    all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
-
     st.sidebar.image("bdc_logo.png", width=150)
     menu = st.sidebar.radio("القائمة الرئيسية", [
         "🔍 البحث العام", 
@@ -70,142 +63,88 @@ if df is not None:
             available = [c for c in search_cols if c in df.columns]
             mask = df[available].apply(lambda x: x.str.contains(q, case=False, na=False)).any(axis=1)
             results = df[mask]
-            if not results.empty:
-                st.dataframe(results, use_container_width=True)
-            else:
-                st.warning("⚠️ لا توجد نتائج.")
+            st.dataframe(results, use_container_width=True) if not results.empty else st.warning("⚠️ لا توجد نتائج.")
 
-    # 🔍 قسم البحث التاريخي (حل خطأ Year و Key)
+    # 🔍 محرك البحث التاريخي
     elif menu == "🔍 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، أو الهاتف)")
         if q_hist:
-            search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
-            available_hist = [c for c in search_cols_hist if c in df.columns]
-            mask_hist = df[available_hist].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
+            mask_hist = df[['Name', 'Individual Number', 'رقم الهاتف']].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
             results_hist = df[mask_hist]
-
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
-                
-                c1, c2 = st.columns(2)
-                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
-                # استخدام get لتجنب KeyError
-                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
-                
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- قسم الإحصائيات (تعديلك الجديد) ---
-elif menu == "📊 الإحصائيات المرنة":
-    st.header("📊 تحليل القوى العاملة (فلترة ذكية متقدمة)")
+    # 📊 الإحصائيات المرنة (الفلترة الذكية المتقدمة المستبدلة)
+    elif menu == "📊 الإحصائيات المرنة":
+        st.header("📊 تحليل القوى العاملة (فلترة ذكية متقدمة)")
+        st.sidebar.divider()
+        st.sidebar.subheader("🎯 فلاتر متقدمة")
 
-    st.sidebar.divider()
-    st.sidebar.subheader("🎯 فلاتر متقدمة")
+        base_df = df.copy()
 
-    base_df = df.copy()
+        # الفلاتر الديناميكية
+        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", sorted(base_df['Main Position'].unique()))
+        if sel_pos: base_df = base_df[base_df['Main Position'].isin(sel_pos)]
 
-    # --- 1. فلاتر ديناميكية ---
-    sel_pos = st.sidebar.multiselect(
-        "المسمى الوظيفي:",
-        sorted(base_df['Main Position'].unique()),
-        default=[]
-    )
+        sel_proj = st.sidebar.multiselect("المشروع:", sorted(base_df['Project'].unique()))
+        if sel_proj: base_df = base_df[base_df['Project'].isin(sel_proj)]
 
-    if sel_pos:
-        base_df = base_df[base_df['Main Position'].isin(sel_pos)]
+        sel_gen = st.sidebar.multiselect("الجنس:", sorted(base_df['EmpGender'].unique()))
+        if sel_gen: base_df = base_df[base_df['EmpGender'].isin(sel_gen)]
 
-    sel_proj = st.sidebar.multiselect(
-        "المشروع:",
-        sorted(base_df['Project'].unique()),
-        default=[]
-    )
+        sel_skill = st.sidebar.multiselect("مستوى المهارة:", sorted(base_df['Skill Level'].unique()))
+        if sel_skill: base_df = base_df[base_df['Skill Level'].isin(sel_skill)]
 
-    if sel_proj:
-        base_df = base_df[base_df['Project'].isin(sel_proj)]
+        f_df = base_df.copy()
 
-    sel_gen = st.sidebar.multiselect(
-        "الجنس:",
-        sorted(base_df['EmpGender'].unique()),
-        default=[]
-    )
+        search_inside = st.text_input("🔎 بحث داخل النتائج")
+        if search_inside:
+            mask_inside = f_df.apply(lambda row: row.astype(str).str.contains(search_inside, case=False).any(), axis=1)
+            f_df = f_df[mask_inside]
 
-    if sel_gen:
-        base_df = base_df[base_df['EmpGender'].isin(sel_gen)]
+        total_all = len(df)
+        total_filtered = len(f_df)
+        st.markdown(f"📌 النتائج: **{total_filtered}** من أصل **{total_all}**")
 
-    sel_skill = st.sidebar.multiselect(
-        "مستوى المهارة:",
-        sorted(base_df['Skill Level'].unique()),
-        default=[]
-    )
+        if not f_df.empty:
+            c1, c2, c3, c4 = st.columns(4)
+            males = len(f_df[f_df['EmpGender'] == 'Male'])
+            females = len(f_df[f_df['EmpGender'] == 'Female'])
+            c1.metric("إجمالي", total_filtered)
+            c2.metric("ذكور 👨", males)
+            c3.metric("إناث 👩", females)
+            c4.metric("نسبة الإناث", f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%")
 
-    if sel_skill:
-        base_df = base_df[base_df['Skill Level'].isin(sel_skill)]
+            st.divider()
+            col1, col2 = st.columns(2)
+            with col1:
+                pos_counts = f_df['Main Position'].value_counts().reset_index()
+                pos_counts.columns = ['المسمى', 'العدد']
+                fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', color='العدد')
+                st.plotly_chart(fig1, use_container_width=True)
+            with col2:
+                proj_counts = f_df['Project'].value_counts().reset_index()
+                proj_counts.columns = ['المشروع', 'العدد']
+                fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
+                st.plotly_chart(fig2, use_container_width=True)
 
-    f_df = base_df.copy()
+            st.subheader("📋 البيانات المفلترة")
+            st.dataframe(f_df, use_container_width=True)
+        else:
+            st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
-    # --- 2. بحث سريع داخل النتائج ---
-    search_inside = st.text_input("🔎 بحث داخل النتائج")
-    if search_inside:
-        f_df = f_df.apply(lambda row: row.astype(str).str.contains(search_inside, case=False).any(), axis=1)
-        f_df = base_df[f_df]
-
-    # --- 3. عرض عدد النتائج ---
-    total_all = len(df)
-    total_filtered = len(f_df)
-
-    st.markdown(f"""
-    📌 النتائج: **{total_filtered}** من أصل **{total_all}**
-    """)
-
-    if not f_df.empty:
-
-        # --- 4. Metrics ---
-        c1, c2, c3, c4 = st.columns(4)
-
-        males = len(f_df[f_df['EmpGender'] == 'Male'])
-        females = len(f_df[f_df['EmpGender'] == 'Female'])
-
-        c1.metric("إجمالي", total_filtered)
-        c2.metric("ذكور 👨", males)
-        c3.metric("إناث 👩", females)
-        c4.metric("نسبة الإناث", f"{(females/total_filtered*100):.1f}%")
-
-        st.divider()
-
-        # --- 5. الرسوم ---
-        col1, col2 = st.columns(2)
-
-        with col1:
-            pos_counts = f_df['Main Position'].value_counts().reset_index()
-            pos_counts.columns = ['المسمى', 'العدد']
-            fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h')
-            st.plotly_chart(fig1, use_container_width=True)
-
-        with col2:
-            proj_counts = f_df['Project'].value_counts().reset_index()
-            proj_counts.columns = ['المشروع', 'العدد']
-            fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
-            st.plotly_chart(fig2, use_container_width=True)
-
-        # --- 6. الجدول ---
-        st.subheader("📋 البيانات")
-        st.dataframe(f_df, use_container_width=True)
-
-    else:
-        st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
-
-    # --- قسم القائمة السوداء ---
-     elif menu == "🚫 القائمة السوداء":
+    # 🚫 القائمة السوداء
+    elif menu == "🚫 القائمة السوداء":
         st.header("🚫 سجل الحالات المحظورة")
         if 'حالة الموظف' in df.columns:
-            bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
-            st.dataframe(bl_df, use_container_width=True)
-        else:
-            st.info("عمود الحالة غير متوفر.")
+            bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)]
+            st.dataframe(bl_df, use_container_width=True) if not bl_df.empty else st.success("✅ لا توجد حالات محظورة.")
 
     # أزرار التحكم
     st.sidebar.divider()

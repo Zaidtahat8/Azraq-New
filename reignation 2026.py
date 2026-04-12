@@ -29,16 +29,22 @@ if "password_correct" not in st.session_state:
             st.error("❌ بيانات الدخول خاطئة")
     st.stop()
 
-# --- 3. جلب البيانات ---
+# --- 3. جلب البيانات (معالجة مشكلة Zip File) ---
 @st.cache_data(ttl=300)
 def load_data():
+    # الرابط المباشر للتحميل من OneDrive
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
-        res = requests.get(URL)
-        data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
-        for col in data.columns:
-            data[col] = data[col].astype(str).str.strip().replace('nan', '')
-        return data
+        res = requests.get(URL, timeout=10)
+        # التحقق من أن الاستجابة ناجحة
+        if res.status_code == 200:
+            data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+            for col in data.columns:
+                data[col] = data[col].astype(str).str.strip().replace('nan', '')
+            return data
+        else:
+            st.error("⚠️ فشل الوصول للملف، يرجى التحقق من رابط OneDrive.")
+            return None
     except Exception as e:
         st.error(f"خطأ في الاتصال أو الملف: {e}")
         return None
@@ -55,7 +61,7 @@ if df is not None:
         "🚫 القائمة السوداء"
     ])
     
-    # --- قسم البحث العام المعتمد ---
+    # --- قسم البحث العام ---
     if menu == "🔍 البحث العام":
         st.header("🔍 محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
@@ -70,7 +76,7 @@ if df is not None:
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- قسم البحث التاريخي الجديد المعتمد ---
+    # --- قسم البحث التاريخي المحدث ---
     elif menu == "🔍 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
@@ -87,16 +93,14 @@ if df is not None:
                 
                 c1, c2 = st.columns(2)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
-                # جلب آخر حالة من العمود المطلوب
-                status_val = full_history.iloc[-1].get('حالة الموظف', 'N/A')
-                c2.metric("الحالة الحالية", status_val)
+                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
                 
                 st.write("📂 **بيانات الإكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # 📊 الإحصائيات المرنة مع ميزة التصدير
+    # --- قسم الإحصائيات (معالجة مشكلة التصدير) ---
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة (فلترة وتصدير)")
         st.sidebar.divider()
@@ -104,60 +108,51 @@ if df is not None:
 
         base_df = df.copy()
         
-        # الفلاتر الديناميكية
-        cols_to_filter = ['Main Position', 'Project', 'EmpGender', 'Skill Level']
-        for col in cols_to_filter:
+        # الفلاتر
+        cols_filter = ['Main Position', 'Project', 'EmpGender']
+        for col in cols_filter:
             if col in base_df.columns:
-                options = sorted(base_df[col].unique())
-                sel = st.sidebar.multiselect(f"{col}:", options)
+                sel = st.sidebar.multiselect(f"{col}:", sorted(base_df[col].unique()))
                 if sel:
                     base_df = base_df[base_df[col].isin(sel)]
 
         f_df = base_df.copy()
-        total_filtered = len(f_df)
-
+        
         if not f_df.empty:
-            c1, c2, c3, c4 = st.columns(4)
-            males = len(f_df[f_df['EmpGender'] == 'Male']) if 'EmpGender' in f_df.columns else 0
-            females = len(f_df[f_df['EmpGender'] == 'Female']) if 'EmpGender' in f_df.columns else 0
-            
-            c1.metric("إجمالي الفئة", total_filtered)
-            c2.metric("ذكور 👨", males)
-            c3.metric("إناث 👩", females)
-            c4.metric("نسبة الإناث", f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("إجمالي الفئة", len(f_df))
+            c2.metric("ذكور", len(f_df[f_df['EmpGender'] == 'Male']))
+            c3.metric("إناث", len(f_df[f_df['EmpGender'] == 'Female']))
 
             st.divider()
-            st.subheader("📥 تصدير التقرير المفلتر")
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                f_df.to_excel(writer, index=False, sheet_name='Report')
+            st.subheader("📥 تصدير التقرير")
             
+            # تصدير كملف CSV (لضمان العمل دون مشاكل مكتبات Excel)
+            csv = f_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                label="📄 تحميل التقرير (Excel)",
-                data=output.getvalue(),
-                file_name=f"HR_Report_{datetime.date.today()}.xlsx",
-                mime="application/vnd.ms-excel"
+                label="📥 تحميل النتائج المفلترة (CSV)",
+                data=csv,
+                file_name=f"HR_Report_{datetime.date.today()}.csv",
+                mime="text/csv"
             )
 
-            col1, col2 = st.columns(2)
-            with col1:
-                if 'Main Position' in f_df.columns:
-                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى المسميات")
-                    st.plotly_chart(fig1, use_container_width=True)
-            with col2:
-                if 'Project' in f_df.columns:
-                    fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
-                    st.plotly_chart(fig2, use_container_width=True)
+            # رسوم بيانية سريعة
+            if 'Project' in f_df.columns:
+                st.plotly_chart(px.pie(f_df, names='Project', title="توزيع المشاريع"), use_container_width=True)
         else:
             st.warning("⚠️ لا توجد نتائج.")
 
-    # 🚫 القائمة السوداء
+    # --- قسم القائمة السوداء (معالجة مشكلة الإزاحة) ---
     elif menu == "🚫 القائمة السوداء":
         st.header("🚫 سجل الحالات المحظورة")
         if 'حالة الموظف' in df.columns:
             bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)]
-            st.dataframe(bl_df, use_container_width=True) if not bl_df.empty else st.success("✅ القائمة نظيفة.")
+            if not bl_df.empty:
+                st.dataframe(bl_df, use_container_width=True)
+            else:
+                st.success("✅ لا توجد حالات محظورة حالياً.")
 
+    # زر التحديث
     st.sidebar.divider()
     if st.sidebar.button("🔄 تحديث قاعدة البيانات"):
         st.cache_data.clear()

@@ -101,53 +101,102 @@ if df is not None:
 
     # --- قسم الإحصائيات (تعديلك الجديد) ---
     elif menu == "📊 الإحصائيات المرنة":
-        st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
-        
-        st.sidebar.divider()
-        st.sidebar.subheader("🎯 تخصيص العرض")
-        
-        # الفلاتر الجانبية
-        sel_proj = st.sidebar.multiselect("المشروع (Project):", all_projects, default=all_projects)
-        sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
-        sel_skill = st.sidebar.multiselect("مستوى المهارة:", all_skills, default=all_skills)
-        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", all_positions, default=all_positions[:5] if len(all_positions)>5 else all_positions)
+    st.header("📊 تحليل القوى العاملة (فلترة ذكية متقدمة)")
 
-        # تطبيق الفلترة
-        f_df = df[(df['Project'].isin(sel_proj)) & 
-                  (df['EmpGender'].isin(sel_gen)) & 
-                  (df['Skill Level'].isin(sel_skill)) & 
-                  (df['Main Position'].isin(sel_pos))]
+    st.sidebar.divider()
+    st.sidebar.subheader("🎯 فلاتر متقدمة")
 
-        if not f_df.empty:
-            # البطاقات الرباعية
-            c1, c2, c3, c4 = st.columns(4)
-            total = len(f_df)
-            males = len(f_df[f_df['EmpGender'] == 'Male'])
-            females = len(f_df[f_df['EmpGender'] == 'Female'])
-            
-            c1.metric("إجمالي الفئة", total)
-            c2.metric("الذكور 👨", males)
-            c3.metric("الإناث 👩", females)
-            c4.metric("نسبة الإناث", f"{(females/total*100 if total>0 else 0):.1f}%")
+    base_df = df.copy()
 
-            st.divider()
+    # --- 1. فلاتر ديناميكية ---
+    sel_pos = st.sidebar.multiselect(
+        "المسمى الوظيفي:",
+        sorted(base_df['Main Position'].unique()),
+        default=[]
+    )
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("📍 التوزيع حسب المسمى")
-                pos_counts = f_df['Main Position'].value_counts().reset_index()
-                pos_counts.columns = ['المسمى', 'العدد']
-                fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h', color='العدد', color_continuous_scale='Blues')
-                st.plotly_chart(fig1, use_container_width=True)
+    if sel_pos:
+        base_df = base_df[base_df['Main Position'].isin(sel_pos)]
 
-            with col2:
-                st.subheader("🏗️ التوزيع حسب المشروع")
-                proj_counts = f_df['Project'].value_counts().reset_index()
-                proj_counts.columns = ['المشروع', 'العدد']
-                fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
-                st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("⚠️ الرجاء اختيار الخيارات من القائمة الجانبية لعرض النتائج.")
+    sel_proj = st.sidebar.multiselect(
+        "المشروع:",
+        sorted(base_df['Project'].unique()),
+        default=[]
+    )
+
+    if sel_proj:
+        base_df = base_df[base_df['Project'].isin(sel_proj)]
+
+    sel_gen = st.sidebar.multiselect(
+        "الجنس:",
+        sorted(base_df['EmpGender'].unique()),
+        default=[]
+    )
+
+    if sel_gen:
+        base_df = base_df[base_df['EmpGender'].isin(sel_gen)]
+
+    sel_skill = st.sidebar.multiselect(
+        "مستوى المهارة:",
+        sorted(base_df['Skill Level'].unique()),
+        default=[]
+    )
+
+    if sel_skill:
+        base_df = base_df[base_df['Skill Level'].isin(sel_skill)]
+
+    f_df = base_df.copy()
+
+    # --- 2. بحث سريع داخل النتائج ---
+    search_inside = st.text_input("🔎 بحث داخل النتائج")
+    if search_inside:
+        f_df = f_df.apply(lambda row: row.astype(str).str.contains(search_inside, case=False).any(), axis=1)
+        f_df = base_df[f_df]
+
+    # --- 3. عرض عدد النتائج ---
+    total_all = len(df)
+    total_filtered = len(f_df)
+
+    st.markdown(f"""
+    📌 النتائج: **{total_filtered}** من أصل **{total_all}**
+    """)
+
+    if not f_df.empty:
+
+        # --- 4. Metrics ---
+        c1, c2, c3, c4 = st.columns(4)
+
+        males = len(f_df[f_df['EmpGender'] == 'Male'])
+        females = len(f_df[f_df['EmpGender'] == 'Female'])
+
+        c1.metric("إجمالي", total_filtered)
+        c2.metric("ذكور 👨", males)
+        c3.metric("إناث 👩", females)
+        c4.metric("نسبة الإناث", f"{(females/total_filtered*100):.1f}%")
+
+        st.divider()
+
+        # --- 5. الرسوم ---
+        col1, col2 = st.columns(2)
+
+        with col1:
+            pos_counts = f_df['Main Position'].value_counts().reset_index()
+            pos_counts.columns = ['المسمى', 'العدد']
+            fig1 = px.bar(pos_counts.head(10), x='العدد', y='المسمى', orientation='h')
+            st.plotly_chart(fig1, use_container_width=True)
+
+        with col2:
+            proj_counts = f_df['Project'].value_counts().reset_index()
+            proj_counts.columns = ['المشروع', 'العدد']
+            fig2 = px.pie(proj_counts, names='المشروع', values='العدد', hole=0.4)
+            st.plotly_chart(fig2, use_container_width=True)
+
+        # --- 6. الجدول ---
+        st.subheader("📋 البيانات")
+        st.dataframe(f_df, use_container_width=True)
+
+    else:
+        st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
     # --- قسم القائمة السوداء ---
     elif menu == "🚫 القائمة السوداء":

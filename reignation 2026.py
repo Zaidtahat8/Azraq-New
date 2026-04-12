@@ -34,7 +34,7 @@ def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
         res = requests.get(URL)
-        # استخدام engine='openpyxl' لحل مشكلة صيغة الملف
+        # استخدام engine='openpyxl' لحل مشكلة صيغة الملف (image_32f9e3.png)
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip().replace('nan', '')
@@ -54,11 +54,12 @@ if df is not None:
     all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
 
     st.sidebar.image("bdc_logo.png", width=150)
+    
+    # تم حذف "🚫 القائمة السوداء" من الخيارات هنا
     menu = st.sidebar.radio("القائمة الرئيسية", [
         "🔍 البحث العام", 
         "🔍 محرك البحث التاريخي", 
-        "📊 الإحصائيات المرنة", 
-        "🚫 القائمة السوداء"
+        "📊 الإحصائيات المرنة"
     ])
     
     # 🔍 قسم البحث العام
@@ -99,27 +100,24 @@ if df is not None:
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- قسم الإحصائيات (تعديلك الجديد) ---
+    # --- قسم الإحصائيات ---
     elif menu == "📊 الإحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة (فلترة مرنة)")
         
         st.sidebar.divider()
         st.sidebar.subheader("🎯 تخصيص العرض")
         
-        # الفلاتر الجانبية
         sel_proj = st.sidebar.multiselect("المشروع (Project):", all_projects, default=all_projects)
         sel_gen = st.sidebar.multiselect("الجنس:", all_genders, default=all_genders)
         sel_skill = st.sidebar.multiselect("مستوى المهارة:", all_skills, default=all_skills)
         sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", all_positions, default=all_positions[:5] if len(all_positions)>5 else all_positions)
 
-        # تطبيق الفلترة
         f_df = df[(df['Project'].isin(sel_proj)) & 
                   (df['EmpGender'].isin(sel_gen)) & 
                   (df['Skill Level'].isin(sel_skill)) & 
                   (df['Main Position'].isin(sel_pos))]
 
         if not f_df.empty:
-            # البطاقات الرباعية
             c1, c2, c3, c4 = st.columns(4)
             total = len(f_df)
             males = len(f_df[f_df['EmpGender'] == 'Male'])
@@ -148,13 +146,6 @@ if df is not None:
                 st.plotly_chart(fig2, use_container_width=True)
         else:
             st.info("⚠️ الرجاء اختيار الخيارات من القائمة الجانبية لعرض النتائج.")
-
-    # 🚫 القائمة السوداء
-    elif menu == "🚫 القائمة السوداء":
-        st.header("🚫 الحالات المحظورة")
-        if 'حالة الموظف' in df.columns:
-            bl_df = df[df['حالة الموظف'].str.contains('Blacklist', case=False, na=False)]
-            st.dataframe(bl_df, use_container_width=True)
 
     # أزرار التحكم
     st.sidebar.divider()

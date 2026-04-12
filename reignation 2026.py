@@ -21,7 +21,7 @@ if "password_correct" not in st.session_state:
     u = st.text_input("اسم المستخدم")
     p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
-        if u == "alaa" and p == "azraq2026":
+        if u == "zaid" and p == "11111":
             st.session_state["password_correct"] = True
             st.rerun()
         else:
@@ -54,7 +54,7 @@ if df is not None:
     all_positions = sorted(df['Main Position'].unique().tolist()) if 'Main Position' in df.columns else []
 
     st.sidebar.image("bdc_logo.png", width=150)
-    menu = st.sidebar.radio("القائمة الرئيسية:", [
+    menu = st.sidebar.radio("القائمة الرئيسية", [
         "🔍 البحث العام", 
         "🔍 محرك البحث التاريخي", 
         "📊 الإحصائيات المرنة", 

@@ -54,9 +54,9 @@ def load_data():
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip()
         return data
-    except:
-        st.error("خطأ في تحميل البيانات")
-        return None
+except Exception as e:
+    st.error(f"❌ خطأ في تحميل البيانات: {e}")
+    return None
 
 
 df = load_data()

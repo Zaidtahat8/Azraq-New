@@ -95,7 +95,7 @@ def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
        res = requests.get(URL, timeout=10)
-        data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+    data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
         data = data.fillna('')
 for col in data.columns:
     data[col] = data[col].astype(str).str.strip()

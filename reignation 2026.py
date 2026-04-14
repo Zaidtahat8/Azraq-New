@@ -152,7 +152,7 @@ if 'Individual Number' in df.columns:
 else:
     st.error("⚠️ عمود Individual Number غير موجود")
 
-             st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
+st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 
                 c1, c2 = st.columns(2)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")

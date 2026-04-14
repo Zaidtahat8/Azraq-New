@@ -93,18 +93,21 @@ if "password_correct" not in st.session_state:
 @st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
+    
     try:
-       res = requests.get(URL, timeout=10)
-    data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+        res = requests.get(URL, timeout=10)
+        data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+        
+        # تنظيف البيانات
         data = data.fillna('')
-for col in data.columns:
-    data[col] = data[col].astype(str).str.strip()
+        for col in data.columns:
+            data[col] = data[col].astype(str).str.strip()
+        
         return data
+
     except Exception as e:
         st.error(f"خطأ في الاتصال: {e}")
         return None
-
-df = load_data()
 
 # --- 4. إدارة الواجهة والقوائم ---
 if df is not None:

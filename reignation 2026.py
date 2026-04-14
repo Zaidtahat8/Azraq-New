@@ -45,18 +45,28 @@ if "password_correct" not in st.session_state:
 
 # --- Load Data ---
 @st.cache_data(ttl=300)
+@st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
+
     try:
         res = requests.get(URL, timeout=10)
+
+        if res.status_code != 200:
+            st.error(f"❌ فشل تحميل الملف: {res.status_code}")
+            return None
+
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+
         data = data.fillna('')
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip()
+
         return data
-except Exception as e:
-    st.error(f"❌ خطأ في تحميل البيانات: {e}")
-    return None
+
+    except Exception as e:
+        st.error(f"❌ خطأ في تحميل البيانات: {e}")
+        return None
 
 
 df = load_data()

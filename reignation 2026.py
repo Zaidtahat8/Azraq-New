@@ -7,7 +7,8 @@ from fpdf import FPDF
 import datetime
 import os
 
-# ملاحظة: لعمل التصدير بشكل صحيح، تأكد من إضافة fpdf و openpyxl لملف requirements.txt
+# ملاحظة: لعمل التصدير بشكل صحيح، تأكد من إضافة المكتبات التالية لملف requirements.txt:
+# streamlit, pandas, requests, plotly, fpdf2, openpyxl, kaleido
 
 # --- 1. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
@@ -26,13 +27,13 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
     
-    # 1. عنوان التقرير (يظل كما هو)
+    # 1. عنوان التقرير
     pdf.cell(200, 10, txt="HR Workforce Report - 2026", ln=True, align='C')
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt=f"Date: {datetime.date.today()}", ln=True, align='C')
     pdf.ln(10)
     
-    # 2. ملخص البيانات الرقمية (يظل كما هو)
+    # 2. ملخص البيانات الرقمية
     pdf.set_fill_color(200, 220, 255)
     pdf.cell(190, 10, txt="Statistical Summary", ln=True, fill=True)
     pdf.cell(95, 10, txt=f"Total Filtered: {total}", border=1)
@@ -41,33 +42,27 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     pdf.cell(95, 10, txt=f"Females: {females}", border=1, ln=True)
     pdf.ln(10)
 
-    # 3. إضافة الرسومات البيانية بالألوان الكاملة (التعديل الجديد)
+    # 3. إضافة الرسومات البيانية بالألوان الكاملة
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(190, 10, txt="Visual Analytics - Project Distribution", ln=True)
     pdf.ln(5)
 
     try:
-        # إنشاء الرسم البياني
         if 'Project' in dataframe.columns:
             fig_pdf = px.pie(dataframe, names='Project', title="Project Distribution")
             
-            # --- التعديل الجوهري لحل مشكلة الألوان ---
-            # إجبار التنسيق على الوضع الفاتح وبخلفية بيضاء تماماً ليتناسب مع ورق الطباعة
             fig_pdf.update_layout(
-                template="plotly_white",  # استخدام التنسيق الأبيض
-                paper_bgcolor='white',    # لونه الخلفية الورقية بيضاء
-                plot_bgcolor='white',     # لون خلفية الرسم بيضاء
-                font=dict(color="black")  # تحديد لون الخط بالأسود ليكون واضحاً
+                template="plotly_white",
+                paper_bgcolor='white',
+                plot_bgcolor='white',
+                font=dict(color="black")
             )
             
-            # حفظ الرسم كصورة مؤقتة بدقة عالية
             img_path = "temp_pie_chart.png"
-            fig_pdf.write_image(img_path, scale=2) # scale=2 لزيادة الدقة
+            fig_pdf.write_image(img_path, scale=2)
             
-            # إدراج الصورة في الـ PDF
             pdf.image(img_path, x=20, y=None, w=150)
             
-            # مسح الصورة المؤقتة
             if os.path.exists(img_path):
                 os.remove(img_path)
                 
@@ -75,10 +70,17 @@ def create_pdf_report(dataframe, total, males, females, ratio):
         pdf.set_font("Arial", size=10)
         pdf.cell(190, 10, txt=f"Note: Colors could not be rendered perfectly. Error: {str(e)}", ln=True)
 
-    return pdf.output(dest='S').encode('latin-1', errors='replace')
+    # --- التصحيح الأول: التعامل مع كلا الإصدارين من fpdf و fpdf2 ---
+    # fpdf2 (الإصدار الحديث) يُعيد bytearray مباشرةً، أما fpdf القديم يُعيد string
+    output = pdf.output(dest='S')
+    if isinstance(output, (bytes, bytearray)):
+        return bytes(output)
+    else:
+        return output.encode('latin-1', errors='replace')
+
 # --- 2. نظام الدخول ---
 if "password_correct" not in st.session_state:
-    st.title("🔐 بوابة إدارة الموارد البشرية")
+    st.title("بوابة ادارة الموارد البشرية")
     u = st.text_input("اسم المستخدم")
     p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
@@ -86,7 +88,7 @@ if "password_correct" not in st.session_state:
             st.session_state["password_correct"] = True
             st.rerun()
         else:
-            st.error("❌ بيانات الدخول خاطئة")
+            st.error("بيانات الدخول خاطئة")
     st.stop()
 
 # --- 3. جلب البيانات ---
@@ -94,7 +96,7 @@ if "password_correct" not in st.session_state:
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
-        res = requests.get(URL)
+        res = requests.get(URL, timeout=30)
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
         for col in data.columns:
             data[col] = data[col].astype(str).str.strip().replace('nan', '')
@@ -107,17 +109,22 @@ df = load_data()
 
 # --- 4. إدارة الواجهة والقوائم ---
 if df is not None:
-    st.sidebar.image("bdc_logo.png", width=150)
+    # --- التصحيح الثاني: حماية تحميل الشعار في حال غياب الملف ---
+    try:
+        st.sidebar.image("bdc_logo.png", width=150)
+    except Exception:
+        st.sidebar.markdown("**BDC | HR System**")
+
     menu = st.sidebar.radio("القائمة الرئيسية", [
-        "🔍 البحث العام", 
-        "🔍 محرك البحث التاريخي", 
-        "📊 الإحصائيات المرنة", 
-        "🚫 القائمة السوداء"
+        "البحث العام", 
+        "محرك البحث التاريخي", 
+        "الاحصائيات المرنة", 
+        "القائمة السوداء"
     ])
     
     # --- قسم البحث العام ---
-    if menu == "🔍 البحث العام":
-        st.header("🔍 محرك البحث عن المتطوعين")
+    if menu == "البحث العام":
+        st.header("محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
         if q:
             search_cols = ['Name', 'Individual Number', 'رقم الهاتف']
@@ -128,11 +135,11 @@ if df is not None:
                 st.success(f"تم العثور على {len(results)} سجل.")
                 st.dataframe(results, use_container_width=True)
             else:
-                st.warning("⚠️ لا توجد نتائج.")
+                st.warning("لا توجد نتائج.")
 
     # --- قسم البحث التاريخي ---
-    elif menu == "🔍 محرك البحث التاريخي":
-        st.header("🔍 السجل الوظيفي والخط الزمني")
+    elif menu == "محرك البحث التاريخي":
+        st.header("السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
         if q_hist:
             search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
@@ -143,22 +150,22 @@ if df is not None:
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
-                st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
+                st.subheader(f"ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 
                 c1, c2 = st.columns(2)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
                 c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
                 
-                st.write("📂 **بيانات الإكسل الكاملة:**")
+                st.write("**بيانات الاكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
-                st.warning("⚠️ لا توجد نتائج.")
+                st.warning("لا توجد نتائج.")
 
-    # 📊 الإحصائيات المرنة
-    elif menu == "📊 الإحصائيات المرنة":
-        st.header("📊 تحليل القوى العاملة (فلترة ذكية متقدمة)")
+    # --- الإحصائيات المرنة ---
+    elif menu == "الاحصائيات المرنة":
+        st.header("تحليل القوى العاملة (فلترة ذكية متقدمة)")
         st.sidebar.divider()
-        st.sidebar.subheader("🎯 فلاتر متقدمة")
+        st.sidebar.subheader("فلاتر متقدمة")
 
         base_df = df.copy()
 
@@ -181,15 +188,25 @@ if df is not None:
             
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("إجمالي", total_filtered)
-            c2.metric("ذكور 👨", males)
-            c3.metric("إناث 👩", females)
+            c2.metric("ذكور", males)
+            c3.metric("اناث", females)
             c4.metric("نسبة الإناث", ratio_text)
 
             st.divider()
-            # زر تصدير PDF
-            if st.button("📥 إنشاء تقرير PDF"):
-                pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
-                st.download_button(label="تحميل الملف", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
+
+            # --- التصحيح الثالث: استخدام session_state لتجنب مشكلة إعادة التشغيل عند الضغط على زر PDF ---
+            if st.button("انشاء تقرير PDF"):
+                with st.spinner("جاري إنشاء التقرير..."):
+                    pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+                    st.session_state["pdf_bytes"] = pdf_bytes
+
+            if "pdf_bytes" in st.session_state:
+                st.download_button(
+                    label="تحميل الملف",
+                    data=st.session_state["pdf_bytes"],
+                    file_name="HR_Report.pdf",
+                    mime="application/pdf"
+                )
 
             st.divider()
             col1, col2 = st.columns(2)
@@ -202,40 +219,33 @@ if df is not None:
                     fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
                     st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
+            st.warning("لا توجد نتائج حسب الفلاتر")
 
-# --- قسم القائمة السوداء المطور ---
-    elif menu == "🚫 القائمة السوداء":
-        st.header("🚫 إدارة وسجل الحالات المحظورة")
+    # --- قسم القائمة السوداء ---
+    elif menu == "القائمة السوداء":
+        st.header("إدارة وسجل الحالات المحظورة")
         
-        # 1. إضافة خانة البحث المخصص داخل القائمة السوداء
-        search_query = st.text_input("🔍 ابحث في القائمة السوداء (الاسم، الرقم الفردي، الرقم الأمني، أو الهاتف)")
+        search_query = st.text_input("ابحث في القائمة السوداء (الاسم، الرقم الفردي، الرقم الأمني، أو الهاتف)")
 
         if 'حالة الموظف' in df.columns:
-            # تصفية البيانات الأساسية للقائمة السوداء أولاً
             bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)].copy()
             
-            # 2. تطبيق البحث إذا قام المستخدم بإدخال نص
             if search_query:
-                # تحديد الأعمدة التي سيتم البحث فيها
                 search_cols = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
-                # التأكد من وجود هذه الأعمدة في الملف لتجنب الأخطاء
                 available_search_cols = [col for col in search_cols if col in bl_df.columns]
                 
-                # إجراء عملية البحث (تجاهل حالة الأحرف)
                 mask = bl_df[available_search_cols].apply(
                     lambda x: x.str.contains(search_query, case=False, na=False)
                 ).any(axis=1)
                 bl_df = bl_df[mask]
 
-            # 3. عرض النتائج
             if not bl_df.empty:
-                st.warning(f"⚠️ تم العثور على {len(bl_df)} حالة محظورة.")
+                st.warning(f"تم العثور على {len(bl_df)} حالة محظورة.")
                 st.dataframe(bl_df, use_container_width=True)
             else:
                 if search_query:
-                    st.info("ℹ️ لا توجد نتائج تطابق بحثك في القائمة السوداء.")
+                    st.info("لا توجد نتائج تطابق بحثك في القائمة السوداء.")
                 else:
-                    st.success("✅ لا توجد حالات محظورة مسجلة حالياً.")
+                    st.success("لا توجد حالات محظورة مسجلة حالياً.")
         else:
-            st.error("⚠️ عمود 'حالة الموظف' غير موجود في قاعدة البيانات.")
+            st.error("عمود 'حالة الموظف' غير موجود في قاعدة البيانات.")

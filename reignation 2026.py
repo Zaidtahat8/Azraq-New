@@ -61,7 +61,7 @@ def create_pdf_report(dataframe, total, males, females, ratio):
             )
             
             # حفظ الرسم كصورة مؤقتة بدقة عالية
-            img_path = "temp_pie_chart.png"
+            img_path = f"temp_{datetime.datetime.now().timestamp()}.png"
             fig_pdf.write_image(img_path, scale=2) # scale=2 لزيادة الدقة
             
             # إدراج الصورة في الـ PDF
@@ -94,10 +94,11 @@ if "password_correct" not in st.session_state:
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
     try:
-        res = requests.get(URL)
+       res = requests.get(URL, timeout=10)
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
-        for col in data.columns:
-            data[col] = data[col].astype(str).str.strip().replace('nan', '')
+        data = data.fillna('')
+for col in data.columns:
+    data[col] = data[col].astype(str).str.strip()
         return data
     except Exception as e:
         st.error(f"خطأ في الاتصال: {e}")
@@ -119,6 +120,7 @@ if df is not None:
     if menu == "🔍 البحث العام":
         st.header("🔍 محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
+        q = q.strip()
         if q:
             search_cols = ['Name', 'Individual Number', 'رقم الهاتف']
             available = [c for c in search_cols if c in df.columns]
@@ -142,7 +144,10 @@ if df is not None:
 
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
-                full_history = df[df['Individual Number'] == main_id].copy()
+                if 'Individual Number' in df.columns:
+    full_history = df[df['Individual Number'] == main_id].copy()
+else:
+    st.error("⚠️ عمود Individual Number غير موجود")
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 
                 c1, c2 = st.columns(2)
@@ -187,7 +192,7 @@ if df is not None:
 
             st.divider()
             # زر تصدير PDF
-            if st.button("📥 إنشاء تقرير PDF"):
+            if st.button("📥 إنشاء تقرير PDF", use_container_width=True):
                 pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
                 st.download_button(label="تحميل الملف", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
 

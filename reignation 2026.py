@@ -151,8 +151,7 @@ if 'Individual Number' in df.columns:
     full_history = df[df['Individual Number'] == main_id].copy()
 else:
     st.error("⚠️ عمود Individual Number غير موجود")
-else:
-    st.error("⚠️ عمود Individual Number غير موجود")
+
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 
                 c1, c2 = st.columns(2)

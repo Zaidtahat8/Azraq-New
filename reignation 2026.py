@@ -232,12 +232,6 @@ if df is not None:
                         pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
                         st.download_button("⬇️ تحميل PDF", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
             
-            with col_exp2:
-                # تصدير Excel
-                output_excel = BytesIO()
-                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                    f_df.to_excel(writer, index=False, sheet_name='FilteredData')
-                st.download_button("Excel 📥 تحميل البيانات كـ", data=output_excel.getvalue(), file_name="Filtered_HR_Data.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             st.divider()
             col1, col2 = st.columns(2)

@@ -19,21 +19,19 @@ st.markdown("""
     div[data-testid="stMetric"] { background-color: #0f172a !important; border: 2px solid #1e293b !important; padding: 20px !important; border-radius: 15px !important; }
     div[data-testid="stMetricValue"] { color: #00f2ff !important; font-weight: 800 !important; }
     div[data-testid="stMetricLabel"] { color: #cbd5e1 !important; }
+    .stButton>button { width: 100%; border-radius: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
 
 # ============================================================
-# --- [إضافة جديدة] نظام تسجيل الدخول (Logging) ---
+# --- نظام تسجيل الدخول (Logging) ---
 # ============================================================
 
 LOG_FILE = "login_logs.csv"
 
 def log_login(username: str):
-    """
-    تسجل كل عملية دخول ناجحة في ملف CSV.
-    الأعمدة: التاريخ، الوقت، اسم المستخدم
-    """
+    """تسجل كل عملية دخول ناجحة في ملف CSV."""
     now = datetime.datetime.now()
     log_entry = {
         "date": now.strftime("%Y-%m-%d"),
@@ -57,7 +55,7 @@ def load_logs() -> pd.DataFrame:
 # ============================================================
 
 
-# --- دالة توليد تقرير PDF (حل مشكلة Unicode) ---
+# --- دالة توليد تقرير PDF ---
 def create_pdf_report(dataframe, total, males, females, ratio):
     pdf = FPDF()
     pdf.add_page()
@@ -83,12 +81,7 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     try:
         if 'Project' in dataframe.columns:
             fig_pdf = px.pie(dataframe, names='Project', title="Project Distribution")
-            fig_pdf.update_layout(
-                template="plotly_white",
-                paper_bgcolor='white',
-                plot_bgcolor='white',
-                font=dict(color="black")
-            )
+            fig_pdf.update_layout(template="plotly_white", paper_bgcolor='white', plot_bgcolor='white', font=dict(color="black"))
             img_path = "temp_pie_chart.png"
             fig_pdf.write_image(img_path, scale=2)
             pdf.image(img_path, x=20, y=None, w=150)
@@ -96,13 +89,10 @@ def create_pdf_report(dataframe, total, males, females, ratio):
                 os.remove(img_path)
     except Exception as e:
         pdf.set_font("Arial", size=10)
-        pdf.cell(190, 10, txt=f"Note: Colors could not be rendered perfectly. Error: {str(e)}", ln=True)
+        pdf.cell(190, 10, txt=f"Note: Visualization could not be added. Error: {str(e)}", ln=True)
 
     output = pdf.output(dest='S')
-    if isinstance(output, (bytes, bytearray)):
-        return bytes(output)
-    else:
-        return output.encode('latin-1', errors='replace')
+    return bytes(output) if isinstance(output, (bytes, bytearray)) else output.encode('latin-1', errors='replace')
 
 
 # --- 2. نظام الدخول ---
@@ -113,8 +103,8 @@ if "password_correct" not in st.session_state:
     if st.button("دخول"):
         if u == "zaid" and p == "11111":
             st.session_state["password_correct"] = True
-            st.session_state["current_user"] = u   # [إضافة] حفظ اسم المستخدم في الجلسة
-            log_login(u)                            # [إضافة] تسجيل الدخول فور النجاح
+            st.session_state["current_user"] = u
+            log_login(u)
             st.rerun()
         else:
             st.error("بيانات الدخول خاطئة")
@@ -140,26 +130,37 @@ df = load_data()
 
 # --- 4. إدارة الواجهة والقوائم ---
 if df is not None:
+    # القائمة الجانبية
     try:
         st.sidebar.image("bdc_logo.png", width=150)
-    except Exception:
-        st.sidebar.markdown("**BDC | HR System**")
+    except:
+        st.sidebar.markdown("### BDC | HR System")
 
-    # [إضافة] عرض اسم المستخدم الحالي في الـ Sidebar
     current_user = st.session_state.get("current_user", "مجهول")
-    st.sidebar.caption(f"مرحباً، **{current_user}**")
+    st.sidebar.success(f"مرحباً، **{current_user}**")
+    
+    # [تطوير] زر تحديث البيانات
+    if st.sidebar.button("🔄 تحديث قاعدة البيانات"):
+        st.cache_data.clear()
+        st.rerun()
 
     menu = st.sidebar.radio("القائمة الرئيسية", [
         "البحث العام",
         "محرك البحث التاريخي",
         "الاحصائيات المرنة",
         "القائمة السوداء",
-        "سجل الدخولات",          # [إضافة] قسم جديد
+        "سجل الدخولات",
     ])
+
+    # [تطوير] زر تسجيل الخروج
+    st.sidebar.divider()
+    if st.sidebar.button("🚪 تسجيل الخروج"):
+        del st.session_state["password_correct"]
+        st.rerun()
 
     # --- قسم البحث العام ---
     if menu == "البحث العام":
-        st.header("محرك البحث عن المتطوعين")
+        st.header("🔍 محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
         if q:
             search_cols = ['Name', 'Individual Number', 'رقم الهاتف']
@@ -174,7 +175,7 @@ if df is not None:
 
     # --- قسم البحث التاريخي ---
     elif menu == "محرك البحث التاريخي":
-        st.header("السجل الوظيفي والخط الزمني")
+        st.header("📜 السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
         if q_hist:
             search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
@@ -185,23 +186,20 @@ if df is not None:
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
-                st.subheader(f"ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
+                st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 c1, c2 = st.columns(2)
                 c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
                 c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
-                st.write("**بيانات الاكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("لا توجد نتائج.")
 
     # --- الإحصائيات المرنة ---
     elif menu == "الاحصائيات المرنة":
-        st.header("تحليل القوى العاملة (فلترة ذكية متقدمة)")
-        st.sidebar.divider()
-        st.sidebar.subheader("فلاتر متقدمة")
+        st.header("📊 تحليل القوى العاملة")
+        st.sidebar.subheader("فلاتر التقرير")
 
         base_df = df.copy()
-
         if 'Main Position' in base_df.columns:
             sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", sorted(base_df['Main Position'].unique()))
             if sel_pos: base_df = base_df[base_df['Main Position'].isin(sel_pos)]
@@ -225,136 +223,74 @@ if df is not None:
             c4.metric("نسبة الإناث", ratio_text)
 
             st.divider()
-
-            if st.button("انشاء تقرير PDF"):
-                with st.spinner("جاري إنشاء التقرير..."):
-                    pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
-                    st.session_state["pdf_bytes"] = pdf_bytes
-
-            if "pdf_bytes" in st.session_state:
-                st.download_button(
-                    label="تحميل الملف",
-                    data=st.session_state["pdf_bytes"],
-                    file_name="HR_Report.pdf",
-                    mime="application/pdf"
-                )
+            
+            # [تطوير] خيارات التصدير (PDF & Excel)
+            col_exp1, col_exp2 = st.columns(2)
+            with col_exp1:
+                if st.button("📄 إنشاء تقرير PDF"):
+                    with st.spinner("جاري التحضير..."):
+                        pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+                        st.download_button("⬇️ تحميل PDF", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
+            
+            with col_exp2:
+                # تصدير Excel
+                output_excel = BytesIO()
+                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                    f_df.to_excel(writer, index=False, sheet_name='FilteredData')
+                st.download_button("Excel 📥 تحميل البيانات كـ", data=output_excel.getvalue(), file_name="Filtered_HR_Data.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             st.divider()
             col1, col2 = st.columns(2)
             with col1:
                 if 'Main Position' in f_df.columns:
-                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى المسميات")
+                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى 10 مسميات وظيفية")
                     st.plotly_chart(fig1, use_container_width=True)
             with col2:
                 if 'Project' in f_df.columns:
-                    fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
+                    fig2 = px.pie(f_df, names='Project', title="توزيع الموظفين حسب المشاريع")
                     st.plotly_chart(fig2, use_container_width=True)
+            
+            st.write("**البيانات المفلترة:**")
+            st.dataframe(f_df, use_container_width=True)
         else:
-            st.warning("لا توجد نتائج حسب الفلاتر")
+            st.warning("لا توجد نتائج حسب الفلاتر المختارة")
 
     # --- قسم القائمة السوداء ---
     elif menu == "القائمة السوداء":
-        st.header("إدارة وسجل الحالات المحظورة")
-        search_query = st.text_input("ابحث في القائمة السوداء (الاسم، الرقم الفردي، الرقم الأمني، أو الهاتف)")
+        st.header("🚫 إدارة الحالات المحظورة")
+        search_query = st.text_input("ابحث في القائمة السوداء...")
 
         if 'حالة الموظف' in df.columns:
             bl_df = df[df['حالة الموظف'].str.contains('Blacklist|منع', case=False, na=False)].copy()
-
             if search_query:
                 search_cols = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
                 available_search_cols = [col for col in search_cols if col in bl_df.columns]
-                mask = bl_df[available_search_cols].apply(
-                    lambda x: x.str.contains(search_query, case=False, na=False)
-                ).any(axis=1)
+                mask = bl_df[available_search_cols].apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
                 bl_df = bl_df[mask]
 
             if not bl_df.empty:
-                st.warning(f"تم العثور على {len(bl_df)} حالة محظورة.")
+                st.error(f"تنبيه: تم العثور على {len(bl_df)} حالة محظورة.")
                 st.dataframe(bl_df, use_container_width=True)
             else:
-                if search_query:
-                    st.info("لا توجد نتائج تطابق بحثك في القائمة السوداء.")
-                else:
-                    st.success("لا توجد حالات محظورة مسجلة حالياً.")
+                st.success("لا توجد حالات محظورة تطابق البحث.")
         else:
-            st.error("عمود 'حالة الموظف' غير موجود في قاعدة البيانات.")
+            st.error("عمود 'حالة الموظف' غير موجود.")
 
-
-    # ============================================================
-    # --- [إضافة جديدة] قسم سجل الدخولات ---
-    # ============================================================
+    # --- قسم سجل الدخولات ---
     elif menu == "سجل الدخولات":
-        st.header("سجل الدخولات - من دخل ومتى")
-
+        st.header("🔑 سجل نشاط المستخدمين")
         logs_df = load_logs()
 
         if logs_df.empty:
-            st.info("لا توجد سجلات دخول حتى الآن.")
+            st.info("لا توجد سجلات دخول.")
         else:
-            # --- إحصائيات سريعة ---
-            total_logins   = len(logs_df)
-            unique_users   = logs_df["username"].nunique()
-            last_login_row = logs_df.iloc[-1]
-            last_login_str = f"{last_login_row['date']}  {last_login_row['time']}"
-
             m1, m2, m3 = st.columns(3)
-            m1.metric("إجمالي عمليات الدخول", total_logins)
-            m2.metric("عدد المستخدمين الفريدين", unique_users)
-            m3.metric("آخر دخول", last_login_str)
+            m1.metric("إجمالي الدخول", len(logs_df))
+            m2.metric("المستخدمين", logs_df["username"].nunique())
+            m3.metric("آخر نشاط", f"{logs_df.iloc[-1]['date']}")
 
             st.divider()
-
-            # --- فلتر بالتاريخ ---
-            st.subheader("تصفية السجل")
-            col_f1, col_f2 = st.columns(2)
-
-            with col_f1:
-                filter_user = st.text_input("بحث باسم المستخدم")
-            with col_f2:
-                unique_dates = sorted(logs_df["date"].unique(), reverse=True)
-                filter_date = st.selectbox("تصفية بالتاريخ", options=["الكل"] + list(unique_dates))
-
-            filtered_logs = logs_df.copy()
-
-            if filter_user:
-                filtered_logs = filtered_logs[
-                    filtered_logs["username"].str.contains(filter_user, case=False, na=False)
-                ]
-            if filter_date != "الكل":
-                filtered_logs = filtered_logs[filtered_logs["date"] == filter_date]
-
-            # عرض الجدول مع ترتيب من الأحدث للأقدم
-            st.dataframe(
-                filtered_logs.sort_values(["date", "time"], ascending=False).reset_index(drop=True),
-                use_container_width=True,
-                column_config={
-                    "date":     st.column_config.TextColumn("التاريخ"),
-                    "time":     st.column_config.TextColumn("الوقت"),
-                    "username": st.column_config.TextColumn("اسم المستخدم"),
-                }
-            )
-
-            st.divider()
-
-            # --- رسم بياني: عدد الدخولات لكل يوم ---
-            if len(logs_df) >= 2:
-                daily_counts = logs_df.groupby("date").size().reset_index(name="count")
-                fig_log = px.bar(
-                    daily_counts,
-                    x="date",
-                    y="count",
-                    title="عدد الدخولات يومياً",
-                    labels={"date": "التاريخ", "count": "عدد الدخولات"},
-                )
-                st.plotly_chart(fig_log, use_container_width=True)
-
-            # --- تصدير السجل كـ CSV ---
-            st.divider()
+            st.dataframe(logs_df.sort_values(["date", "time"], ascending=False), use_container_width=True)
+            
             csv_data = logs_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="تحميل السجل الكامل (CSV)",
-                data=csv_data,
-                file_name="login_logs.csv",
-                mime="text/csv",
-            )
-    # ============================================================
+            st.download_button("تحميل السجل الكامل CSV", data=csv_data, file_name="logs.csv", mime="text/csv")

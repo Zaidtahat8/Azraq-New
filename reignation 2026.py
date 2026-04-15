@@ -194,53 +194,67 @@ if df is not None:
             else:
                 st.warning("لا توجد نتائج.")
 
-    # --- الإحصائيات المرنة ---
-    elif menu == "الاحصائيات المرنة":
-        st.header("📊 تحليل القوى العاملة")
-        st.sidebar.subheader("فلاتر التقرير")
+ # --- الإحصائيات المرنة ---
+elif menu == "الاحصائيات المرنة":
+    st.header("📊 تحليل القوى العاملة")
+    st.sidebar.subheader("فلاتر التقرير")
 
-        base_df = df.copy()
-        if 'Main Position' in base_df.columns:
-            sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", sorted(base_df['Main Position'].unique()))
-            if sel_pos: base_df = base_df[base_df['Main Position'].isin(sel_pos)]
+    base_df = df.copy()
 
-        if 'Project' in base_df.columns:
-            sel_proj = st.sidebar.multiselect("المشروع:", sorted(base_df['Project'].unique()))
-            if sel_proj: base_df = base_df[base_df['Project'].isin(sel_proj)]
+    # فلتر المسمى الوظيفي
+    if 'Main Position' in base_df.columns:
+        sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", sorted(base_df['Main Position'].unique()))
+        if sel_pos:
+            base_df = base_df[base_df['Main Position'].isin(sel_pos)]
 
-        f_df = base_df.copy()
-        total_filtered = len(f_df)
+    # فلتر المشروع
+    if 'Project' in base_df.columns:
+        sel_proj = st.sidebar.multiselect("المشروع:", sorted(base_df['Project'].unique()))
+        if sel_proj:
+            base_df = base_df[base_df['Project'].isin(sel_proj)]
 
-        if not f_df.empty:
-            males = len(f_df[f_df['EmpGender'] == 'Male'])
-            females = len(f_df[f_df['EmpGender'] == 'Female'])
-            ratio_text = f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%"
+    # ✅ فلتر الجنس (الإضافة الجديدة)
+    if 'EmpGender' in base_df.columns:
+        sel_gender = st.sidebar.multiselect("الجنس:", ["Male", "Female"])
+        if sel_gender:
+            base_df = base_df[base_df['EmpGender'].isin(sel_gender)]
 
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("إجمالي", total_filtered)
-            c2.metric("ذكور", males)
-            c3.metric("اناث", females)
-            c4.metric("نسبة الإناث", ratio_text)
+    f_df = base_df.copy()
+    total_filtered = len(f_df)
 
-            st.divider()
-            # زر تصدير PDF
-            if st.button("📥 إنشاء تقرير PDF"):
-                pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
-                st.download_button(label="تحميل الملف", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
+    if not f_df.empty:
+        males = len(f_df[f_df['EmpGender'] == 'Male'])
+        females = len(f_df[f_df['EmpGender'] == 'Female'])
+        ratio_text = f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%"
 
-            st.divider()
-            col1, col2 = st.columns(2)
-            with col1:
-                if 'Main Position' in f_df.columns:
-                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى المسميات")
-                    st.plotly_chart(fig1, use_container_width=True)
-            with col2:
-                if 'Project' in f_df.columns:
-                    fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
-                    st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("إجمالي", total_filtered)
+        c2.metric("ذكور", males)
+        c3.metric("اناث", females)
+        c4.metric("نسبة الإناث", ratio_text)
 
+        st.divider()
+
+        # زر تصدير PDF
+        if st.button("📥 إنشاء تقرير PDF"):
+            pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+            st.download_button(label="تحميل الملف", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
+
+        st.divider()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if 'Main Position' in f_df.columns:
+                fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى المسميات")
+                st.plotly_chart(fig1, use_container_width=True)
+
+        with col2:
+            if 'Project' in f_df.columns:
+                fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
+                st.plotly_chart(fig2, use_container_width=True)
+
+    else:
+        st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
 
 
     # --- قسم القائمة السوداء ---

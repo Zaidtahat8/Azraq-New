@@ -222,8 +222,7 @@ if df is not None:
             c3.metric("اناث", females)
             c4.metric("نسبة الإناث", ratio_text)
 
- st.divider()
-
+            st.divider()
             # زر تصدير PDF
             if st.button("📥 إنشاء تقرير PDF"):
                 pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
@@ -241,6 +240,7 @@ if df is not None:
                     st.plotly_chart(fig2, use_container_width=True)
         else:
             st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
+
 
 
     # --- قسم القائمة السوداء ---

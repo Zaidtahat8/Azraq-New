@@ -8,20 +8,23 @@ import datetime
 import os
 import csv
 
-# --- إعدادات الصفحة ---
+# ملاحظة: لعمل التصدير بشكل صحيح، تأكد من إضافة المكتبات التالية لملف requirements.txt:
+# streamlit, pandas, requests, plotly, fpdf2, openpyxl, kaleido
+
+# --- 1. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
 st.markdown("""
-<style>
-div[data-testid="stMetric"] { background-color: #0f172a !important; border: 2px solid #1e293b !important; padding: 20px !important; border-radius: 15px !important; }
-div[data-testid="stMetricValue"] { color: #00f2ff !important; font-weight: 800 !important; }
-div[data-testid="stMetricLabel"] { color: #cbd5e1 !important; }
-.stButton>button { width: 100%; border-radius: 10px; }
-</style>
+    <style>
+    div[data-testid="stMetric"] { background-color: #0f172a !important; border: 2px solid #1e293b !important; padding: 20px !important; border-radius: 15px !important; }
+    div[data-testid="stMetricValue"] { color: #00f2ff !important; font-weight: 800 !important; }
+    div[data-testid="stMetricLabel"] { color: #cbd5e1 !important; }
+    .stButton>button { width: 100%; border-radius: 10px; }
+    </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# --- تسجيل الدخول ---
+# --- نظام تسجيل الدخول (Logging) ---
 # ============================================================
 
 LOG_FILE = "login_logs.csv"
@@ -40,36 +43,55 @@ def log_login(username: str):
             writer.writeheader()
         writer.writerow(log_entry)
 
-def load_logs():
+def load_logs() -> pd.DataFrame:
     if os.path.isfile(LOG_FILE):
-        return pd.read_csv(LOG_FILE)
+        return pd.read_csv(LOG_FILE, encoding="utf-8")
     return pd.DataFrame(columns=["date", "time", "username"])
 
 # ============================================================
 
-# --- PDF ---
+# --- دالة توليد تقرير PDF ---
 def create_pdf_report(dataframe, total, males, females, ratio):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-
+    
     pdf.cell(200, 10, txt="HR Workforce Report - 2026", ln=True, align='C')
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt=f"Date: {datetime.date.today()}", ln=True, align='C')
     pdf.ln(10)
+    
+    pdf.set_fill_color(200, 220, 255)
+    pdf.cell(190, 10, txt="Statistical Summary", ln=True, fill=True)
+    pdf.cell(95, 10, txt=f"Total Filtered: {total}", border=1)
+    pdf.cell(95, 10, txt=f"Female Ratio: {ratio}", border=1, ln=True)
+    pdf.cell(95, 10, txt=f"Males: {males}", border=1)
+    pdf.cell(95, 10, txt=f"Females: {females}", border=1, ln=True)
+    pdf.ln(10)
 
-    pdf.cell(190, 10, txt=f"Total: {total}", ln=True)
-    pdf.cell(190, 10, txt=f"Males: {males}", ln=True)
-    pdf.cell(190, 10, txt=f"Females: {females}", ln=True)
-    pdf.cell(190, 10, txt=f"Female Ratio: {ratio}", ln=True)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(190, 10, txt="Visual Analytics - Project Distribution", ln=True)
+    pdf.ln(5)
 
-    return pdf.output(dest='S').encode('latin-1')
+    try:
+        if 'Project' in dataframe.columns:
+            fig_pdf = px.pie(dataframe, names='Project', title="Project Distribution")
+            fig_pdf.update_layout(template="plotly_white", paper_bgcolor='white', plot_bgcolor='white', font=dict(color="black"))
+            img_path = "temp_pie_chart.png"
+            fig_pdf.write_image(img_path, scale=2)
+            pdf.image(img_path, x=20, y=None, w=150)
+            if os.path.exists(img_path):
+                os.remove(img_path)
+    except Exception as e:
+        pdf.set_font("Arial", size=10)
+        pdf.cell(190, 10, txt=f"Note: Visualization could not be added. Error: {str(e)}", ln=True)
 
-# ============================================================
+    output = pdf.output(dest='S')
+    return bytes(output) if isinstance(output, (bytes, bytearray)) else output.encode('latin-1', errors='replace')
 
-# --- Login ---
+# --- 2. نظام الدخول ---
 if "password_correct" not in st.session_state:
-    st.title("بوابة HR")
+    st.title("بوابة ادارة الموارد البشرية")
     u = st.text_input("اسم المستخدم")
     p = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
@@ -79,91 +101,107 @@ if "password_correct" not in st.session_state:
             log_login(u)
             st.rerun()
         else:
-            st.error("خطأ")
+            st.error("بيانات الدخول خاطئة")
     st.stop()
 
-# ============================================================
-
+# --- 3. جلب البيانات ---
 @st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
-    res = requests.get(URL)
-    df = pd.read_excel(BytesIO(res.content))
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    return df
+    try:
+        res = requests.get(URL, timeout=30)
+        data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
+        for col in data.columns:
+            data[col] = data[col].astype(str).str.strip().replace('nan', '')
+        return data
+    except Exception as e:
+        st.error(f"خطأ في الاتصال: {e}")
+        return None
 
 df = load_data()
 
-# ============================================================
+# --- 4. إدارة الواجهة والقوائم ---
+if df is not None:
+    try:
+        st.sidebar.image("bdc_logo.png", width=150)
+    except:
+        st.sidebar.markdown("### BDC | HR System")
 
-st.sidebar.success(f"👤 {st.session_state.get('current_user')}")
+    current_user = st.session_state.get("current_user", "مجهول")
+    st.sidebar.success(f"مرحباً، **{current_user}**")
+    
+    if st.sidebar.button("🔄 تحديث قاعدة البيانات"):
+        st.cache_data.clear()
+        st.rerun()
 
-menu = st.sidebar.radio("القائمة", [
-    "البحث",
-    "الإحصائيات"
-])
+    menu = st.sidebar.radio("القائمة الرئيسية", [
+        "البحث العام",
+        "محرك البحث التاريخي",
+        "الاحصائيات المرنة",
+        "القائمة السوداء",
+        "سجل الدخولات",
+    ])
 
-# ============================================================
+    st.sidebar.divider()
+    if st.sidebar.button("🚪 تسجيل الخروج"):
+        del st.session_state["password_correct"]
+        st.rerun()
 
-if menu == "البحث":
-    st.header("بحث")
-    q = st.text_input("بحث")
-    if q:
-        mask = df.apply(lambda x: x.astype(str).str.contains(q, case=False)).any(axis=1)
-        st.dataframe(df[mask])
+    # --- الإحصائيات المرنة ---
+    if menu == "الاحصائيات المرنة":
+        st.header("📊 تحليل القوى العاملة")
+        st.sidebar.subheader("فلاتر التقرير")
 
-# ============================================================
+        base_df = df.copy()
 
-elif menu == "الإحصائيات":
-    st.header("📊 الإحصائيات")
+        if 'Main Position' in base_df.columns:
+            sel_pos = st.sidebar.multiselect("المسمى الوظيفي:", sorted(base_df['Main Position'].unique()))
+            if sel_pos:
+                base_df = base_df[base_df['Main Position'].isin(sel_pos)]
 
-    base_df = df.copy()
+        if 'Project' in base_df.columns:
+            sel_proj = st.sidebar.multiselect("المشروع:", sorted(base_df['Project'].unique()))
+            if sel_proj:
+                base_df = base_df[base_df['Project'].isin(sel_proj)]
 
-    # فلتر الوظيفة
-    if 'Main Position' in base_df.columns:
-        pos = st.sidebar.multiselect("الوظيفة", base_df['Main Position'].unique())
-        if pos:
-            base_df = base_df[base_df['Main Position'].isin(pos)]
+        # ✅ الإضافة الجديدة: فلتر الجنس
+        if 'EmpGender' in base_df.columns:
+            sel_gender = st.sidebar.multiselect("الجنس:", ["Male", "Female"])
+            if sel_gender:
+                base_df = base_df[base_df['EmpGender'].isin(sel_gender)]
 
-    # فلتر المشروع
-    if 'Project' in base_df.columns:
-        proj = st.sidebar.multiselect("المشروع", base_df['Project'].unique())
-        if proj:
-            base_df = base_df[base_df['Project'].isin(proj)]
+        f_df = base_df.copy()
+        total_filtered = len(f_df)
 
-    # ✅ فلتر الجنس (الجديد)
-    if 'EmpGender' in base_df.columns:
-        gender = st.sidebar.multiselect("الجنس", ["Male", "Female"])
-        if gender:
-            base_df = base_df[base_df['EmpGender'].isin(gender)]
+        if not f_df.empty:
+            males = len(f_df[f_df['EmpGender'] == 'Male'])
+            females = len(f_df[f_df['EmpGender'] == 'Female'])
+            ratio_text = f"{(females/total_filtered*100 if total_filtered > 0 else 0):.1f}%"
 
-    f_df = base_df
-    total = len(f_df)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("إجمالي", total_filtered)
+            c2.metric("ذكور", males)
+            c3.metric("اناث", females)
+            c4.metric("نسبة الإناث", ratio_text)
 
-    males = len(f_df[f_df['EmpGender'] == 'Male'])
-    females = len(f_df[f_df['EmpGender'] == 'Female'])
+            st.divider()
 
-    ratio = f"{(females/total*100 if total else 0):.1f}%"
+            if st.button("📥 إنشاء تقرير PDF"):
+                pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+                st.download_button(label="تحميل الملف", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("الإجمالي", total)
-    c2.metric("ذكور", males)
-    c3.metric("إناث", females)
-    c4.metric("النسبة", ratio)
+            st.divider()
 
-    if st.button("PDF"):
-        pdf = create_pdf_report(f_df, total, males, females, ratio)
-        st.download_button("تحميل", pdf, "report.pdf")
+            col1, col2 = st.columns(2)
+            with col1:
+                if 'Main Position' in f_df.columns:
+                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى المسميات")
+                    st.plotly_chart(fig1, use_container_width=True)
 
-    col1, col2 = st.columns(2)
+            with col2:
+                if 'Project' in f_df.columns:
+                    fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
+                    st.plotly_chart(fig2, use_container_width=True)
 
-    with col1:
-        if 'Main Position' in f_df.columns:
-            fig = px.bar(f_df['Main Position'].value_counts())
-            st.plotly_chart(fig)
-
-    with col2:
-        if 'Project' in f_df.columns:
-            fig = px.pie(f_df, names='Project')
-            st.plotly_chart(fig)
+        else:
+            st.warning("⚠️ لا توجد نتائج حسب الفلاتر")

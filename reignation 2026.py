@@ -222,32 +222,25 @@ if df is not None:
             c3.metric("اناث", females)
             c4.metric("نسبة الإناث", ratio_text)
 
-            st.divider()
-            
-            # [تطوير] خيارات التصدير (PDF & Excel)
-            col_exp1, col_exp2 = st.columns(2)
-            with col_exp1:
-                if st.button("📄 إنشاء تقرير PDF"):
-                    with st.spinner("جاري التحضير..."):
-                        pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
-                        st.download_button("⬇️ تحميل PDF", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
-            
+ st.divider()
+            # زر تصدير PDF
+            if st.button("📥 إنشاء تقرير PDF"):
+                pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+                st.download_button(label="تحميل الملف", data=pdf_bytes, file_name="HR_Report.pdf", mime="application/pdf")
 
             st.divider()
             col1, col2 = st.columns(2)
             with col1:
                 if 'Main Position' in f_df.columns:
-                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى 10 مسميات وظيفية")
+                    fig1 = px.bar(f_df['Main Position'].value_counts().head(10), orientation='h', title="أعلى المسميات")
                     st.plotly_chart(fig1, use_container_width=True)
             with col2:
                 if 'Project' in f_df.columns:
-                    fig2 = px.pie(f_df, names='Project', title="توزيع الموظفين حسب المشاريع")
+                    fig2 = px.pie(f_df, names='Project', title="توزيع المشاريع")
                     st.plotly_chart(fig2, use_container_width=True)
-            
-            st.write("**البيانات المفلترة:**")
-            st.dataframe(f_df, use_container_width=True)
         else:
-            st.warning("لا توجد نتائج حسب الفلاتر المختارة")
+            st.warning("⚠️ لا توجد نتائج حسب الفلاتر")
+
 
     # --- قسم القائمة السوداء ---
     elif menu == "القائمة السوداء":

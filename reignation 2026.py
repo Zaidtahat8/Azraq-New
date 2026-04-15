@@ -36,7 +36,7 @@ def load_logs() -> pd.DataFrame:
     if os.path.isfile(LOG_FILE): return pd.read_csv(LOG_FILE, encoding="utf-8")
     return pd.DataFrame(columns=["date", "time", "username"])
 
-# --- دالة توليد تقرير PDF الملونة (تم إصلاح الترميز) ---
+# --- دالة توليد تقرير PDF ---
 def create_pdf_report(dataframe, total, males, females, ratio):
     pdf = FPDF()
     pdf.add_page()
@@ -52,25 +52,20 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     pdf.cell(95, 10, txt=f"Female Ratio: {ratio}", border=1, ln=True)
     pdf.cell(95, 10, txt=f"Males: {males}", border=1)
     pdf.cell(95, 10, txt=f"Females: {females}", border=1, ln=True)
-    pdf.ln(10)
-
+    
     try:
         if 'Project' in dataframe.columns:
             fig_pdf = px.pie(dataframe, names='Project', title="Project Distribution")
-            fig_pdf.update_layout(template="plotly_white", paper_bgcolor='white', plot_bgcolor='white', font=dict(color="black"))
+            fig_pdf.update_layout(template="plotly_white", paper_bgcolor='white', plot_bgcolor='white')
             img_path = "temp_pie_chart.png"
             fig_pdf.write_image(img_path, engine="kaleido")
             pdf.image(img_path, x=20, y=None, w=150)
             if os.path.exists(img_path): os.remove(img_path)
-    except Exception as e:
-        pdf.set_font("Arial", size=10)
-        pdf.cell(190, 10, txt=f"Note: Visualization Error: {str(e)}", ln=True)
+    except:
+        pass
 
-    # إصلاح مشكلة الترميز لضمان عدم تعليق التحميل
     output = pdf.output(dest='S')
-    if isinstance(output, str):
-        return output.encode('latin-1', errors='replace')
-    return bytes(output)
+    return bytes(output) if isinstance(output, (bytes, bytearray)) else output.encode('latin-1', errors='replace')
 
 # --- نظام الدخول ---
 if "password_correct" not in st.session_state:
@@ -94,7 +89,9 @@ def load_data():
     try:
         res = requests.get(URL, timeout=30)
         data = pd.read_excel(BytesIO(res.content), engine='openpyxl')
-        return data.fillna('').astype(str)
+        for col in data.columns:
+            data[col] = data[col].astype(str).str.strip().replace('nan', '')
+        return data
     except Exception as e:
         st.error(f"خطأ في الاتصال: {e}")
         return None
@@ -115,15 +112,15 @@ if df is not None:
         st.cache_data.clear()
         st.rerun()
 
-    menu = st.sidebar.radio("القائمة الرئيسية", ["البحث العام", "محرك البحث التاريخي", "الاحصائيات المرنة", "القائمة السوداء", "سجل الدخولات"])
+    menu = st.sidebar.radio("القائمة الرئيسية", ["🔍 البحث العام", "📜 محرك البحث التاريخي", "📊 الاحصائيات المرنة", "🚫 القائمة السوداء", "🔑 سجل الدخولات"])
 
     st.sidebar.divider()
     if st.sidebar.button("🚪 تسجيل الخروج"):
         del st.session_state["password_correct"]
         st.rerun()
 
-    # --- 🔍 البحث العام (إصلاح DeltaGenerator) ---
-    if menu == "البحث العام":
+    # --- 🔍 البحث العام ---
+    if menu == "🔍 البحث العام":
         st.header("🔍 محرك البحث عن المتطوعين")
         q = st.text_input("ابحث بالاسم، الرقم الفردي، أو الهاتف")
         if q:
@@ -134,27 +131,34 @@ if df is not None:
             if not results.empty:
                 st.dataframe(results, use_container_width=True)
             else:
-                st.warning("لا توجد نتائج.")
+                st.warning("لا توجد نتائج مطابقة.")
 
-    # --- 📜 البحث التاريخي ---
-    elif menu == "محرك البحث التاريخي":
-        st.header("📜 السجل الوظيفي والخط الزمني")
+    # --- 📜 محرك البحث التاريخي (التعديل الجديد المطلوب) ---
+    elif menu == "📜 محرك البحث التاريخي":
+        st.header("🔍 السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
         if q_hist:
             search_cols_hist = ['Name', 'Individual Number', 'الرقم الأمني', 'رقم الهاتف']
             available_hist = [c for c in search_cols_hist if c in df.columns]
             mask_hist = df[available_hist].apply(lambda x: x.str.contains(q_hist, case=False, na=False)).any(axis=1)
             results_hist = df[mask_hist]
+
             if not results_hist.empty:
                 main_id = results_hist.iloc[0].get('Individual Number', '')
                 full_history = df[df['Individual Number'] == main_id].copy()
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
+                
+                c1, c2 = st.columns(2)
+                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
+                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
+                
+                st.write("📂 **بيانات الإكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
-                st.warning("لا توجد نتائج.")
+                st.warning("⚠️ لا توجد نتائج.")
 
     # --- 📊 الإحصائيات المرنة ---
-    elif menu == "الاحصائيات المرنة":
+    elif menu == "📊 الاحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة")
         st.sidebar.subheader("فلاتر التقرير")
         base_df = df.copy()
@@ -187,19 +191,9 @@ if df is not None:
             c4.metric("نسبة الإناث", ratio_text)
 
             st.divider()
-            
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.button("📥 إنشاء تقرير PDF"):
-                    pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
-                    st.download_button("تحميل ملف PDF", pdf_bytes, "HR_Report.pdf", "application/pdf")
-            
-            with col_btn2:
-                # ميزة إضافية: تصدير إكسيل لضمان عدم ضياع البيانات
-                output_excel = BytesIO()
-                with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                    f_df.to_excel(writer, index=False, sheet_name='FilteredData')
-                st.download_button("📥 تحميل ملف Excel", output_excel.getvalue(), "HR_Data.xlsx")
+            if st.button("📥 إنشاء تقرير PDF"):
+                pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
+                st.download_button("تحميل ملف PDF", pdf_bytes, "HR_Report.pdf", "application/pdf")
 
             st.divider()
             col1, col2 = st.columns(2)
@@ -217,8 +211,8 @@ if df is not None:
         else:
             st.warning("⚠️ لا توجد نتائج مطابقة.")
 
-    # --- 🚫 القائمة السوداء (إصلاح DeltaGenerator) ---
-    elif menu == "القائمة السوداء":
+    # --- 🚫 القائمة السوداء ---
+    elif menu == "🚫 القائمة السوداء":
         st.header("🚫 إدارة الحالات المحظورة")
         search_query = st.text_input("ابحث في القائمة السوداء...")
         if 'حالة الموظف' in df.columns:
@@ -233,16 +227,13 @@ if df is not None:
                 st.error(f"تنبيه: تم العثور على {len(bl_df)} حالة.")
                 st.dataframe(bl_df, use_container_width=True)
             else:
-                st.success("لا توجد حالات محظورة حالياً.")
-        else:
-            st.error("عمود 'حالة الموظف' غير موجود في قاعدة البيانات.")
+                st.success("لا توجد حالات محظورة.")
 
     # --- 🔑 سجل الدخولات ---
-    elif menu == "سجل الدخولات":
+    elif menu == "🔑 سجل الدخولات":
         st.header("🔑 سجل نشاط المستخدمين")
         logs_df = load_logs()
         if not logs_df.empty:
             st.dataframe(logs_df.sort_values(["date", "time"], ascending=False), use_container_width=True)
-            st.download_button("تحميل السجل CSV", logs_df.to_csv(index=False).encode("utf-8"), "logs.csv", "text/csv")
         else:
-            st.info("لا توجد سجلات دخول مسجلة حالياً.")
+            st.info("لا توجد سجلات.")

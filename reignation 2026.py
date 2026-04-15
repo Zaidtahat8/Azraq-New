@@ -206,8 +206,6 @@ if df is not None:
                 if 'Project' in f_df.columns:
                     st.plotly_chart(px.pie(f_df, names='Project', title="توزيع الموظفين حسب المشروع", hole=0.4), use_container_width=True)
 
-            with st.expander("👁️ عرض البيانات المفلترة"):
-                st.dataframe(f_df, use_container_width=True)
         else:
             st.warning("⚠️ لا توجد نتائج مطابقة.")
 

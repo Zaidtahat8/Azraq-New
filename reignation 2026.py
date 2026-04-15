@@ -167,4 +167,3 @@ elif menu == "الإحصائيات":
         if 'Project' in f_df.columns:
             fig = px.pie(f_df, names='Project')
             st.plotly_chart(fig)
-```

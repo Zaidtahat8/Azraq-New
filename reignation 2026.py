@@ -223,6 +223,7 @@ if df is not None:
             c4.metric("نسبة الإناث", ratio_text)
 
  st.divider()
+
             # زر تصدير PDF
             if st.button("📥 إنشاء تقرير PDF"):
                 pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)

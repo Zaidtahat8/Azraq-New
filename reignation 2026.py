@@ -198,11 +198,7 @@ if df is not None:
             with col2:
                 if 'Project' in f_df.columns:
                     st.plotly_chart(px.pie(f_df, names='Project', title="توزيع الموظفين حسب المشروع", hole=0.4), use_container_width=True)
-
-            with st.expander("👁️ عرض البيانات المفلترة"):
-                st.dataframe(f_df, use_container_width=True)
-        else: st.warning("⚠️ لا توجد نتائج مطابقة.")
-
+                    
     # --- 🚫 القائمة السوداء ---
     elif menu == "القائمة السوداء":
         st.header("🚫 إدارة الحالات المحظورة")

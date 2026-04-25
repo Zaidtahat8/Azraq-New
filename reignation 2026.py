@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from io import BytesIO
 import plotly.express as px
+import plotly.graph_objects as go
 from fpdf import FPDF
 import datetime
 import os
@@ -11,27 +12,31 @@ import csv
 # --- 1. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="wide")
 
+# --- CSS موحّد لتحسين الواجهة ---
 st.markdown("""
     <style>
-    /* خلفية عامة */
-    .stApp { background-color: #0b1220; color: #e6eef8; }
+    /* خلفية عامة وتدرج لطيف */
+    .stApp { background: linear-gradient(180deg,#071026 0%, #071a2b 100%); color: #e6eef8; }
     /* شريط جانبي */
-    .css-1d391kg { background-color: #071028 !important; }
-    /* بطاقات المقياس */
+    [data-testid="stSidebar"] { background-color: #071028 !important; color: #cfeef8; }
+    /* بطاقات المقياس المخصصة */
     .metric-card {
         background: linear-gradient(135deg,#071a2b 0%, #0f2a3f 100%);
-        border: 1px solid rgba(255,255,255,0.06);
-        padding: 14px;
+        border: 1px solid rgba(255,255,255,0.04);
+        padding: 12px;
         border-radius: 12px;
         color: #e6eef8;
         text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
     .metric-value { font-size: 22px; font-weight: 800; color: #00f2ff; }
     .metric-label { font-size: 13px; color: #9fb6c9; margin-top:6px; }
     /* أزرار */
-    .stButton>button { background: linear-gradient(90deg,#0ea5a4,#06b6d4); color: #021124; font-weight:700; border-radius:10px; padding:8px 12px; }
+    .stButton>button { background: linear-gradient(90deg,#06b6d4,#0ea5a4); color: #021124; font-weight:700; border-radius:10px; padding:8px 12px; }
     /* جداول */
     .stDataFrame table { background: rgba(255,255,255,0.02); color: #e6eef8; }
+    /* عناوين */
+    .section-title { color: #cfeef8; font-weight:700; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -51,7 +56,7 @@ def load_logs() -> pd.DataFrame:
     if os.path.isfile(LOG_FILE): return pd.read_csv(LOG_FILE, encoding="utf-8")
     return pd.DataFrame(columns=["date", "time", "username"])
 
-# --- دالة توليد تقرير PDF ---
+# --- دالة توليد تقرير PDF (لم أغير منطقها) ---
 def create_pdf_report(dataframe, total, males, females, ratio):
     pdf = FPDF()
     pdf.add_page()
@@ -82,7 +87,7 @@ def create_pdf_report(dataframe, total, males, females, ratio):
     output = pdf.output(dest='S')
     return bytes(output) if isinstance(output, (bytes, bytearray)) else output.encode('latin-1', errors='replace')
 
-# --- نظام الدخول ---
+# --- نظام الدخول (لم أغير المنطق) ---
 if "password_correct" not in st.session_state:
     st.title("🔐 بوابة إدارة الموارد البشرية")
     u = st.text_input("اسم المستخدم")
@@ -97,7 +102,7 @@ if "password_correct" not in st.session_state:
             st.error("بيانات الدخول خاطئة")
     st.stop()
 
-# --- جلب البيانات ---
+# --- جلب البيانات (لم أغير المنطق) ---
 @st.cache_data(ttl=300)
 def load_data():
     URL = "https://bdcjoorg-my.sharepoint.com/:x:/g/personal/zaltahat_bdc_org_jo/IQABP_FEs97DRZNQFxtFvyRGAe2xdQxDW6L3jTRC3S803SU?download=1"
@@ -112,6 +117,63 @@ def load_data():
         return None
 
 df = load_data()
+
+# --- دوال مساعدة للرسومات (تحسين العرض فقط) ---
+def create_bar_chart_from_counts(counts_df, x_col, y_col, title):
+    # counts_df: DataFrame with columns [y_col, x_col] or similar
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=counts_df[x_col],
+        y=counts_df[y_col],
+        orientation='v',
+        marker=dict(color=counts_df[x_col], colorscale='Viridis', showscale=False),
+        hovertemplate='%{y} : %{x}<extra></extra>'
+    ))
+    fig.update_layout(
+        title=title,
+        template='plotly_dark',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=10, r=10, t=40, b=10),
+        xaxis_title=None,
+        yaxis_title=None,
+        height=420
+    )
+    return fig
+
+def create_horizontal_bar_chart(counts_df, x_col, y_col, title):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=counts_df[x_col],
+        y=counts_df[y_col],
+        orientation='h',
+        marker=dict(color=counts_df[x_col], colorscale='Viridis', showscale=False),
+        hovertemplate='%{x} موظف<br>%{y}<extra></extra>'
+    ))
+    fig.update_layout(
+        title=title,
+        template='plotly_dark',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=10, r=10, t=40, b=10),
+        xaxis_title=None,
+        yaxis_title=None,
+        height=420
+    )
+    return fig
+
+def create_pie_chart(df, names_col, title, hole=0.4):
+    counts = df[names_col].value_counts().reset_index()
+    counts.columns = [names_col, 'count']
+    fig = go.Figure(go.Pie(
+        labels=counts[names_col],
+        values=counts['count'],
+        hole=hole,
+        marker=dict(colors=px.colors.sequential.Tealgrn),
+        hovertemplate='%{label}: %{value} (%{percent})<extra></extra>'
+    ))
+    fig.update_layout(title=title, template='plotly_dark', margin=dict(t=40, b=10), height=420)
+    return fig
 
 # --- إدارة الواجهة والقوائم ---
 if df is not None:
@@ -148,7 +210,7 @@ if df is not None:
             else:
                 st.warning("لا توجد نتائج مطابقة.")
 
-    # --- 📜 محرك البحث التاريخي (التعديل الجديد المطلوب) ---
+    # --- 📜 محرك البحث التاريخي ---
     elif menu == "📜 محرك البحث التاريخي":
         st.header("🔍 السجل الوظيفي والخط الزمني")
         q_hist = st.text_input("ابحث بـ (الاسم، الرقم الفردي، الهاتف، أو الرقم الأمني)")
@@ -164,15 +226,26 @@ if df is not None:
                 st.subheader(f"👤 ملف الموظف: {results_hist.iloc[0].get('Name', 'N/A')}")
                 
                 c1, c2 = st.columns(2)
-                c1.metric("إجمالي مرات التوظيف", f"{len(full_history)} عقود")
-                c2.metric("الحالة الحالية", full_history.iloc[-1].get('حالة الموظف', 'N/A'))
+                # بطاقات مخصصة للمقاييس داخل البحث التاريخي
+                c1.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-value">{len(full_history)}</div>
+                        <div class="metric-label">إجمالي مرات التوظيف</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                c2.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-value">{full_history.iloc[-1].get('حالة الموظف', 'N/A')}</div>
+                        <div class="metric-label">الحالة الحالية</div>
+                    </div>
+                """, unsafe_allow_html=True)
                 
                 st.write("📂 **بيانات الإكسل الكاملة:**")
                 st.dataframe(full_history, use_container_width=True)
             else:
                 st.warning("⚠️ لا توجد نتائج.")
 
-    # --- 📊 الإحصائيات المرنة ---
+    # --- 📊 الإحصائيات المرنة (تحسين الواجهة والرسومات فقط) ---
     elif menu == "📊 الاحصائيات المرنة":
         st.header("📊 تحليل القوى العاملة")
         st.sidebar.subheader("فلاتر التقرير")
@@ -199,27 +272,54 @@ if df is not None:
             females = len(f_df[f_df['EmpGender'] == 'Female'])
             ratio_text = f"{(females/total_filtered*100):.1f}%"
             
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("إجمالي الموظفين", total_filtered)
-            c2.metric("ذكور 👨", males)
-            c3.metric("إناث 👩", females)
-            c4.metric("نسبة الإناث", ratio_text)
+            # --- بطاقات المقاييس المخصصة ---
+            cols = st.columns(4)
+            metrics = [
+                ("إجمالي الموظفين", total_filtered),
+                ("ذكور 👨", males),
+                ("إناث 👩", females),
+                ("نسبة الإناث", ratio_text)
+            ]
+            for col, (label, value) in zip(cols, metrics):
+                col.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-value">{value}</div>
+                        <div class="metric-label">{label}</div>
+                    </div>
+                """, unsafe_allow_html=True)
 
             st.divider()
+
+            # زر إنشاء تقرير PDF (لم أغير المنطق)
             if st.button("📥 إنشاء تقرير PDF"):
                 pdf_bytes = create_pdf_report(f_df, total_filtered, males, females, ratio_text)
                 st.download_button("تحميل ملف PDF", pdf_bytes, "HR_Report.pdf", "application/pdf")
 
             st.divider()
-            col1, col2 = st.columns(2)
-            with col1:
-                if 'Main Position' in f_df.columns:
-                    counts = f_df['Main Position'].value_counts().head(10).reset_index()
-                    counts.columns = ['Position', 'Count']
-                    st.plotly_chart(px.bar(counts, x='Count', y='Position', orientation='h', title="أعلى 10 مسميات", color='Count', color_continuous_scale='Viridis'), use_container_width=True)
-            with col2:
-                if 'Project' in f_df.columns:
-                    st.plotly_chart(px.pie(f_df, names='Project', title="توزيع الموظفين حسب المشروع", hole=0.4), use_container_width=True)
+
+            # --- تبويبات للعرض: الرسوم والجدول ---
+            tabs = st.tabs(["الرسوم", "الجدول"])
+            with tabs[0]:
+                col1, col2 = st.columns(2)
+                with col1:
+                    # رسم شريطي أفقي لأعلى 10 مسميات
+                    if 'Main Position' in f_df.columns:
+                        counts = f_df['Main Position'].value_counts().head(10).reset_index()
+                        counts.columns = ['Position', 'Count']
+                        # نستخدم الرسم الأفقي المحسّن
+                        fig_bar = create_horizontal_bar_chart(counts, 'Count', 'Position', "أعلى 10 مسميات")
+                        st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "responsive": True})
+                    else:
+                        st.info("لا توجد بيانات للمسميات الوظيفية.")
+                with col2:
+                    # رسم دائري للمشاريع
+                    if 'Project' in f_df.columns:
+                        fig_pie = create_pie_chart(f_df, 'Project', "توزيع الموظفين حسب المشروع", hole=0.45)
+                        st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "responsive": True})
+                    else:
+                        st.info("لا توجد بيانات للمشاريع.")
+            with tabs[1]:
+                st.dataframe(f_df, use_container_width=True)
 
         else:
             st.warning("⚠️ لا توجد نتائج مطابقة.")

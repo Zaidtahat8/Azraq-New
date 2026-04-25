@@ -13,10 +13,25 @@ st.set_page_config(page_title="نظام HR مخيم الأزرق 2026", layout="
 
 st.markdown("""
     <style>
-    div[data-testid="stMetric"] { background-color: #0f172a !important; border: 2px solid #1e293b !important; padding: 20px !important; border-radius: 15px !important; }
-    div[data-testid="stMetricValue"] { color: #00f2ff !important; font-weight: 800 !important; }
-    div[data-testid="stMetricLabel"] { color: #cbd5e1 !important; }
-    .stButton>button { width: 100%; border-radius: 10px; }
+    /* خلفية عامة */
+    .stApp { background-color: #0b1220; color: #e6eef8; }
+    /* شريط جانبي */
+    .css-1d391kg { background-color: #071028 !important; }
+    /* بطاقات المقياس */
+    .metric-card {
+        background: linear-gradient(135deg,#071a2b 0%, #0f2a3f 100%);
+        border: 1px solid rgba(255,255,255,0.06);
+        padding: 14px;
+        border-radius: 12px;
+        color: #e6eef8;
+        text-align: center;
+    }
+    .metric-value { font-size: 22px; font-weight: 800; color: #00f2ff; }
+    .metric-label { font-size: 13px; color: #9fb6c9; margin-top:6px; }
+    /* أزرار */
+    .stButton>button { background: linear-gradient(90deg,#0ea5a4,#06b6d4); color: #021124; font-weight:700; border-radius:10px; padding:8px 12px; }
+    /* جداول */
+    .stDataFrame table { background: rgba(255,255,255,0.02); color: #e6eef8; }
     </style>
 """, unsafe_allow_html=True)
 

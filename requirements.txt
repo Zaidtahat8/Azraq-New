@@ -8,4 +8,3 @@ kaleido
 fpdf
 kaleido==0.2.1
 xlsxwriter
-bcrypt
